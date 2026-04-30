@@ -13,10 +13,9 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
   ## Backends
 
-    * `{:ghcr, "ghcr.io/<owner>"}` — pushes via `oras` to
-      `ghcr.io/<owner>/<package>:<tag>`. Requires `oras` on PATH and an oras
-      login session with `write:packages` (e.g. `gh auth token | oras login
-      ghcr.io -u <user> --password-stdin`).
+    * `{:ghcr, "ghcr.io/<owner>"}` — pushes a pure-Elixir OCI artefact to
+      `ghcr.io/<owner>/<package>:<tag>`. Requires `GHCR_TOKEN` or
+      `GITHUB_TOKEN` in the environment (with `write:packages` scope).
     * `{:github_releases, "<owner>/<repo>"}` — uploads via `gh release` to
       tag `<package>-v<package-version>`, creating the release if needed.
       Requires `gh` on PATH and authenticated.
@@ -74,32 +73,13 @@ defmodule Mix.Tasks.Nbpr.Publish do
   # ───────── GHCR ─────────
 
   defp publish_ghcr!("ghcr.io/" <> owner = _prefix, pkg, tarball) do
-    unless System.find_executable("oras") do
-      Mix.raise("`oras` CLI not found on PATH; install from https://oras.land/")
-    end
-
     package_app = "nbpr_#{pkg.name}"
-    image = "ghcr.io/#{owner}/#{package_app}"
+    image = "#{owner}/#{package_app}"
     tag = ghcr_tag!(tarball, package_app)
-    reference = "#{image}:#{tag}"
+    reference = "ghcr.io/#{image}:#{tag}"
 
-    basename = Path.basename(tarball)
-
-    args = [
-      "push",
-      reference,
-      "--artifact-type",
-      "application/vnd.nbpr.artifact.v1",
-      "#{basename}:application/vnd.nbpr.tarball.v1+tar+gzip"
-    ]
-
-    case System.cmd("oras", args, cd: Path.dirname(tarball), stderr_to_stdout: true) do
-      {_, 0} ->
-        Mix.shell().info("[nbpr] pushed #{basename} to #{reference}")
-
-      {output, status} ->
-        Mix.raise("oras push failed (#{status}): #{output}")
-    end
+    NBPR.OCI.Push.push!(image, tag, tarball)
+    Mix.shell().info("[nbpr] pushed #{Path.basename(tarball)} to #{reference}")
   end
 
   defp publish_ghcr!(prefix, _pkg, _tarball) do
