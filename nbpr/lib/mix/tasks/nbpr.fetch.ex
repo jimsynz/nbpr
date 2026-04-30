@@ -3,15 +3,25 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
   @moduledoc """
   Walks the user's loaded applications for nbpr packages, fetches each one's
-  artefact tarball for the active Nerves system (if not already cached),
-  extracts it, and stages each artefact's `target/` directory into
-  `:nerves, :firmware, :extra_rootfs_overlays`.
+  artefact tarball for the active Nerves system (if not already cached), and
+  copies the artefact's `target/` contents into the package's `priv/` so it
+  ships as part of the OTP release.
 
       mix nbpr.fetch
 
-  Intended to run before `mix firmware`. The recommended wiring is:
+  Intended to run before `mix firmware`. Recommended wiring:
 
       aliases: ["firmware": ["nbpr.fetch", "firmware"]]
+
+  ## Why `priv/` instead of a rootfs overlay
+
+  Each nbpr package's binaries and shared libraries land at
+  `<release>/lib/nbpr_<name>-<vsn>/priv/usr/...`. `:code.priv_dir/1`
+  resolves the right place at runtime; `NBPR.Application` sets
+  `PATH` and `LD_LIBRARY_PATH` once at boot so child processes find
+  binaries and inter-package shared libraries. This keeps Mix release
+  semantics intact and avoids two packages stomping on each other in
+  the rootfs.
 
   ## Discovery
 
@@ -22,9 +32,9 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
   ## Required environment
 
-  Must be run with `MIX_TARGET` set to a real Nerves target — there's no work
-  to do for `:host`. The active Nerves system and version are read from
-  `Nerves.Env.system/0`.
+  Must be run with `MIX_TARGET` set to a real Nerves target — there's no
+  work to do for `:host`. The active Nerves system and version are read
+  from `Nerves.Env.system/0`.
   """
 
   use Mix.Task
@@ -50,15 +60,13 @@ defmodule Mix.Tasks.Nbpr.Fetch do
         :ok
 
       packages ->
-        overlays =
-          Enum.map(packages, fn {app, module} ->
-            fetch_one(app, module, system_app, system_version)
-          end)
-
-        apply_overlays(overlays)
+        Enum.each(packages, fn {app, module} ->
+          install_to_priv!(app, module, system_app, system_version)
+        end)
 
         Mix.shell().info(
-          "[nbpr] staged #{length(overlays)} overlay(s) for #{system_app} #{system_version}."
+          "[nbpr] installed #{length(packages)} package(s) into priv for " <>
+            "#{system_app} #{system_version}."
         )
     end
   end
@@ -73,12 +81,9 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   end
 
   @doc false
-  @spec apply_overlays([Path.t()]) :: :ok
-  def apply_overlays(overlays) do
-    firmware = Application.get_env(:nerves, :firmware, [])
-    existing = Keyword.get(firmware, :extra_rootfs_overlays, [])
-    merged = Keyword.put(firmware, :extra_rootfs_overlays, existing ++ overlays)
-    Application.put_env(:nerves, :firmware, merged)
+  @spec priv_dir_for(atom()) :: Path.t()
+  def priv_dir_for(app) when is_atom(app) do
+    Path.join([Mix.Project.build_path(), "lib", Atom.to_string(app), "priv"])
   end
 
   defp system_app! do
@@ -116,7 +121,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
         do: {app, module}
   end
 
-  defp fetch_one(app, module, system_app, system_version) do
+  defp install_to_priv!(app, module, system_app, system_version) do
     pkg = module.__nbpr_package__()
     package_version = to_string(Application.spec(app, :vsn))
 
@@ -134,6 +139,10 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       :ok = Cache.extract!(tarball, inputs)
     end
 
-    Path.join(Artifact.cache_dir(inputs), "target")
+    target_src = Path.join(Artifact.cache_dir(inputs), "target")
+    priv_dest = priv_dir_for(app)
+
+    File.mkdir_p!(priv_dest)
+    File.cp_r!(target_src, priv_dest)
   end
 end

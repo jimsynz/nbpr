@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Nbpr.FetchTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Mix.Tasks.Nbpr.Fetch
 
@@ -12,42 +12,10 @@ defmodule Mix.Tasks.Nbpr.FetchTest do
     end
   end
 
-  describe "apply_overlays/1" do
-    setup do
-      Application.put_env(:nerves, :firmware, [])
-
-      on_exit(fn ->
-        Application.delete_env(:nerves, :firmware)
-      end)
-
-      :ok
-    end
-
-    test "appends to extra_rootfs_overlays without overwriting other firmware config" do
-      Application.put_env(:nerves, :firmware,
-        rootfs_overlay: ["/user/overlay"],
-        extra_rootfs_overlays: ["/preexisting"]
-      )
-
-      Fetch.apply_overlays(["/nbpr/jq/target", "/nbpr/dnsmasq/target"])
-
-      cfg = Application.get_env(:nerves, :firmware)
-      assert Keyword.fetch!(cfg, :rootfs_overlay) == ["/user/overlay"]
-
-      assert Keyword.fetch!(cfg, :extra_rootfs_overlays) == [
-               "/preexisting",
-               "/nbpr/jq/target",
-               "/nbpr/dnsmasq/target"
-             ]
-    end
-
-    test "creates :extra_rootfs_overlays when missing" do
-      Application.put_env(:nerves, :firmware, [])
-
-      Fetch.apply_overlays(["/nbpr/jq/target"])
-
-      assert Keyword.fetch!(Application.get_env(:nerves, :firmware), :extra_rootfs_overlays) ==
-               ["/nbpr/jq/target"]
+  describe "priv_dir_for/1" do
+    test "returns the build-path priv directory for the given app" do
+      expected = Path.join([Mix.Project.build_path(), "lib", "nbpr_jq", "priv"])
+      assert Fetch.priv_dir_for(:nbpr_jq) == expected
     end
   end
 end

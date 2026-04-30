@@ -25,10 +25,17 @@ defmodule NBPR.DnsmasqTest do
   end
 
   describe "generated daemon module" do
-    test "exports child_spec/1, start_link/1, argv/1" do
+    test "exports child_spec/1, start_link/1, argv/1, binary_path/0" do
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :child_spec, 1)
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :start_link, 1)
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :argv, 1)
+      assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :binary_path, 0)
+    end
+
+    test "binary_path/0 resolves under the package's priv dir" do
+      path = NBPR.Dnsmasq.Dnsmasq.binary_path()
+      assert path =~ "lib/nbpr_dnsmasq"
+      assert String.ends_with?(path, "usr/sbin/dnsmasq")
     end
 
     test "child_spec returns a supervisor child spec map" do

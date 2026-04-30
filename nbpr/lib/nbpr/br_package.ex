@@ -126,7 +126,7 @@ defmodule NBPR.BrPackage do
     {evaluated_opts, _binding} = Code.eval_quoted(opts, [], __CALLER__)
     package = build_metadata!(evaluated_opts, __CALLER__.module)
 
-    daemon_modules = Enum.map(package.daemons, &daemon_module_ast/1)
+    daemon_modules = Enum.map(package.daemons, &daemon_module_ast(&1, package))
     application_module = application_module_ast(package, __CALLER__.module)
 
     quote do
@@ -234,14 +234,16 @@ defmodule NBPR.BrPackage do
     |> String.to_atom()
   end
 
-  defp daemon_module_ast(%Daemon{} = daemon) do
+  defp daemon_module_ast(%Daemon{} = daemon, %Package{} = package) do
     moduledoc = build_daemon_moduledoc(daemon)
+    otp_app = String.to_atom("nbpr_#{package.name}")
 
     quote do
       defmodule unquote(daemon.module) do
         @moduledoc unquote(moduledoc)
 
-        @path unquote(daemon.path)
+        @otp_app unquote(otp_app)
+        @path_in_priv unquote(strip_leading_slash(daemon.path))
         @runtime_opts_schema unquote(Macro.escape(daemon.opts))
         @opt_flags unquote(Macro.escape(daemon.opt_flags))
         @argv_template unquote(Macro.escape(daemon.argv_template))
@@ -259,10 +261,28 @@ defmodule NBPR.BrPackage do
 
         @doc """
         Validates `opts`, builds the argv, and starts the daemon under MuonTrap.
+
+        Resolves the binary path through `:code.priv_dir/1` so the daemon
+        runs from the package's `priv/` rather than a global rootfs path.
         """
         @spec start_link(keyword()) :: GenServer.on_start()
         def start_link(opts) do
-          MuonTrap.Daemon.start_link(@path, argv(opts), [])
+          MuonTrap.Daemon.start_link(binary_path(), argv(opts), [])
+        end
+
+        @doc """
+        Returns the resolved binary path under the package's priv dir.
+        """
+        @spec binary_path() :: String.t()
+        def binary_path do
+          case :code.priv_dir(@otp_app) do
+            {:error, _} ->
+              raise "priv dir not found for #{inspect(@otp_app)}; " <>
+                      "is the package loaded as an OTP application?"
+
+            path ->
+              Path.join(to_string(path), @path_in_priv)
+          end
         end
 
         @doc """
@@ -282,6 +302,9 @@ defmodule NBPR.BrPackage do
       end
     end
   end
+
+  defp strip_leading_slash("/" <> rest), do: rest
+  defp strip_leading_slash(other), do: other
 
   defp application_module_ast(%Package{kernel_modules: []}, _caller_module), do: nil
 
