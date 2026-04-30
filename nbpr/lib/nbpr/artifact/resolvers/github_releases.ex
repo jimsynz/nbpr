@@ -29,8 +29,7 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
 
   @impl NBPR.Artifact.Resolver
   def get(%{url: url}, dest_path) do
-    with :ok <- ensure_http_apps_started(),
-         :ok <- File.mkdir_p(Path.dirname(dest_path)) do
+    with :ok <- File.mkdir_p(Path.dirname(dest_path)) do
       download(url, dest_path)
     end
   end
@@ -44,12 +43,6 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
 
   defp tag_for(inputs) do
     "#{inputs.package_name}-v#{inputs.package_version}"
-  end
-
-  defp ensure_http_apps_started do
-    {:ok, _} = Application.ensure_all_started(:inets)
-    {:ok, _} = Application.ensure_all_started(:ssl)
-    :ok
   end
 
   defp download(url, dest_path) do
