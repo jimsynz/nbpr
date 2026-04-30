@@ -15,12 +15,9 @@ defmodule NBPR.ArtifactTest do
     end
 
     test "is invariant to build_opts ordering" do
-      reordered = %{@inputs | build_opts: [oniguruma: true]}
-      reordered2 = %{@inputs | build_opts: Enum.reverse(oniguruma: true, fizz: false)}
-      reordered3 = %{@inputs | build_opts: [fizz: false, oniguruma: true]}
-
-      _ = reordered
-      assert NBPR.Artifact.cache_key(reordered2) == NBPR.Artifact.cache_key(reordered3)
+      one = %{@inputs | build_opts: [oniguruma: true, fizz: false]}
+      other = %{@inputs | build_opts: [fizz: false, oniguruma: true]}
+      assert NBPR.Artifact.cache_key(one) == NBPR.Artifact.cache_key(other)
     end
 
     test "differs when package_version changes" do
