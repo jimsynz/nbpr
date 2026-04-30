@@ -82,10 +82,11 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   end
 
   defp system_app! do
-    case Code.ensure_loaded?(Nerves.Env) and Nerves.Env.system() do
-      false ->
-        Mix.raise("Nerves.Env is not loaded; ensure :nerves is a project dep")
+    unless Code.ensure_loaded?(Nerves.Env) do
+      Mix.raise("Nerves.Env is not loaded; ensure :nerves is a project dep")
+    end
 
+    case apply(Nerves.Env, :system, []) do
       nil ->
         Mix.raise(
           "no Nerves system found for target #{inspect(Mix.target())}; " <>
