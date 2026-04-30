@@ -25,19 +25,25 @@ defmodule NBPR.Buildroot.Build do
   Builds `br_package` against `defconfig_text` using the BR tree at
   `br_source`. Returns the absolute path to the build's `O=<dir>` output.
 
+  `extra_env` is merged into the make invocation's env. Use it to pass
+  Nerves-specific variables that the system's defconfig references —
+  most importantly `NERVES_DEFCONFIG_DIR` (so `BR2_GLOBAL_PATCH_DIR`
+  resolves) and `BR2_EXTERNAL` (so the system's BR external tree is
+  visible).
+
   The caller owns the output dir's lifetime — typically harvested
-  immediately afterwards by `NBPR.Buildroot.Harvest` (Phase 4.4) and then
-  removed.
+  immediately afterwards by `NBPR.Buildroot.Harvest` and then removed.
   """
-  @spec build!(Path.t(), String.t(), String.t()) :: Path.t()
-  def build!(br_source, defconfig_text, br_package)
-      when is_binary(br_source) and is_binary(defconfig_text) and is_binary(br_package) do
+  @spec build!(Path.t(), String.t(), String.t(), [{String.t(), String.t()}]) :: Path.t()
+  def build!(br_source, defconfig_text, br_package, extra_env \\ [])
+      when is_binary(br_source) and is_binary(defconfig_text) and is_binary(br_package) and
+             is_list(extra_env) do
     ensure_linux!()
 
     output_dir = make_output_dir!(br_package)
     File.write!(Path.join(output_dir, ".config"), defconfig_text)
 
-    env = build_env()
+    env = build_env() ++ extra_env
 
     run_make!(br_source, output_dir, env, ["olddefconfig"])
     run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"])

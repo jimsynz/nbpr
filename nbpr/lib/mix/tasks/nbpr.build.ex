@@ -77,9 +77,19 @@ defmodule Mix.Tasks.Nbpr.Build do
     Mix.shell().info("[nbpr] building #{inputs.package_name} #{inputs.package_version}")
 
     br_source = ensure_br_source!()
-    defconfig_text = render_defconfig!(pkg, system_app, build_opts)
+    system_source_path = system_source_path!(system_app)
+    defconfig_text = render_defconfig!(pkg, system_source_path, build_opts)
 
-    output_dir_br = Build.build!(br_source, defconfig_text, pkg.br_package)
+    extra_env = [
+      # Nerves' BR patches reference paths via this var so the system's
+      # `nerves_defconfig` keeps working when the BR tree lives elsewhere.
+      {"NERVES_DEFCONFIG_DIR", system_source_path},
+      # Make the Nerves system's BR external tree (erlinit, nerves-config,
+      # boardid, …) visible to BR's package resolver.
+      {"BR2_EXTERNAL", system_source_path}
+    ]
+
+    output_dir_br = Build.build!(br_source, defconfig_text, pkg.br_package, extra_env)
 
     try do
       sources = Harvest.harvest!(output_dir_br, pkg.br_package)
@@ -206,9 +216,18 @@ defmodule Mix.Tasks.Nbpr.Build do
     end
   end
 
-  defp render_defconfig!(pkg, system_app, build_opts) do
-    deps_path = Mix.Project.deps_path()
-    sys_defconfig = Path.join([deps_path, Atom.to_string(system_app), "nerves_defconfig"])
+  defp system_source_path!(system_app) do
+    path = Path.join(Mix.Project.deps_path(), Atom.to_string(system_app))
+
+    unless File.dir?(path) do
+      Mix.raise("system source not found at #{path}; ensure `mix deps.get` ran")
+    end
+
+    path
+  end
+
+  defp render_defconfig!(pkg, system_source_path, build_opts) do
+    sys_defconfig = Path.join(system_source_path, "nerves_defconfig")
 
     unless File.regular?(sys_defconfig) do
       Mix.raise("system defconfig not found at #{sys_defconfig}")
