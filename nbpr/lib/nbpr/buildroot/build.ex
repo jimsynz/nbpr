@@ -48,22 +48,38 @@ defmodule NBPR.Buildroot.Build do
   def build!(br_source, output_dir, defconfig_text, br_package, extra_env \\ [], opts \\ [])
       when is_binary(br_source) and is_binary(output_dir) and is_binary(defconfig_text) and
              is_binary(br_package) and is_list(extra_env) do
-    File.mkdir_p!(output_dir)
-    File.write!(Path.join(output_dir, ".config"), defconfig_text)
-
     env = build_env() ++ extra_env
     extra_mounts = Keyword.get(opts, :extra_mounts, [])
 
     if Docker.in_canonical_env?() do
       ensure_linux!()
+      File.mkdir_p!(output_dir)
+      File.write!(Path.join(output_dir, ".config"), defconfig_text)
       run_make!(br_source, output_dir, env, ["olddefconfig"])
       run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"])
+      output_dir
     else
-      Docker.run_make!(br_source, output_dir, env, ["olddefconfig"], extra_mounts)
-      Docker.run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"], extra_mounts)
-    end
+      # Docker path: run BR build in a named volume (so hardlinks work),
+      # extract per-package output to a host-accessible bind-mount dir.
+      slug = Path.basename(output_dir)
+      volume = Docker.volume_name(slug)
+      extract_dir = Path.join(output_dir, ".nbpr-docker-extract")
 
-    output_dir
+      Docker.build!(
+        br_source: br_source,
+        build_path: output_dir,
+        volume: volume,
+        extract_dir: extract_dir,
+        defconfig_text: defconfig_text,
+        br_package: br_package,
+        env: env,
+        extra_mounts: extra_mounts
+      )
+
+      # Return the dir Harvest will read — it has `per-package/<br_package>/`
+      # populated from the volume.
+      extract_dir
+    end
   end
 
   @doc false
