@@ -100,11 +100,19 @@ defmodule NBPR.Buildroot.Docker do
     bash_script =
       build_script(build_path, defconfig_host_file, br_source, br_package, extract_dir)
 
+    # The image's default user is `nerves`, not root, so without `--user 0:0`
+    # we can't write to the freshly-created (root-owned) named volume. Run
+    # as root, then `chown -R` the extracted output to the host user at the
+    # end of the bash script.
+    host_uid = user_id()
+    host_gid = group_id()
+
     docker_args =
-      ["run", "--rm", "--user", "#{user_id()}:#{group_id()}"] ++
+      ["run", "--rm", "--user", "0:0"] ++
         ["-v", "#{volume}:#{build_path}"] ++
         Enum.flat_map(bind_mount_paths, fn p -> ["-v", "#{p}:#{p}"] end) ++
         env_args(env) ++
+        ["-e", "HOST_UID=#{host_uid}", "-e", "HOST_GID=#{host_gid}"] ++
         [@image, "bash", "-c", bash_script]
 
     Mix.shell().info("[nbpr] running BR build in docker (volume #{volume})")
@@ -132,6 +140,9 @@ defmodule NBPR.Buildroot.Docker do
   end
 
   defp build_script(build_path, defconfig_host, br_source, br_package, extract_dir) do
+    pp_src = "#{build_path}/per-package/#{br_package}"
+    pp_dst = "#{extract_dir}/per-package/#{br_package}"
+
     """
     set -euo pipefail
 
@@ -139,11 +150,72 @@ defmodule NBPR.Buildroot.Docker do
 
     cd #{shell_quote(br_source)}
     make O=#{shell_quote(build_path)} olddefconfig
-    make O=#{shell_quote(build_path)} #{shell_quote("#{br_package}-rebuild")}
 
-    rm -rf #{shell_quote("#{extract_dir}/per-package")}
-    mkdir -p #{shell_quote("#{extract_dir}/per-package")}
-    cp -r #{shell_quote("#{build_path}/per-package/#{br_package}")} #{shell_quote("#{extract_dir}/per-package/")}
+    # `<pkg>-dirclean && <pkg>` (not `<pkg>-rebuild`) so BR snapshots the
+    # before/after target trees and writes a populated `.files-list.txt` /
+    # `.files-list-staging.txt`. `<pkg>-rebuild` skips the snapshot step,
+    # leaving the lists empty. Dirclean only wipes `per-package/<pkg>/`;
+    # the toolchain, host tools, and other deps stay cached.
+    make O=#{shell_quote(build_path)} #{shell_quote("#{br_package}-dirclean")}
+    make O=#{shell_quote(build_path)} #{shell_quote(br_package)}
+
+    # Use BR's files-list to copy only THIS package's contribution out of the
+    # merged per-package sysroot — without this, we'd ship the BR target
+    # skeleton (libc, libstdc++, /etc/passwd, ...) plus every transitive
+    # dep's files in every artefact.
+    #
+    # `host/` is also copied by the merge but never consumed by Harvest, and
+    # it carries the toolchain's full kernel-header tree which has
+    # case-only-distinct names (e.g. `xt_MARK.h` vs `xt_mark.h`) that
+    # collide on case-insensitive host filesystems (default APFS on macOS).
+    rm -rf #{shell_quote(pp_dst)}
+    mkdir -p #{shell_quote(pp_dst)}/target #{shell_quote(pp_dst)}/staging
+
+    BUILD_DIR=$(ls -d #{shell_quote(build_path)}/build/#{br_package}-*/ 2>/dev/null | head -1)
+    BUILD_DIR="${BUILD_DIR%/}"
+    if [ -z "$BUILD_DIR" ] || [ ! -d "$BUILD_DIR" ]; then
+      echo "could not locate build dir for #{br_package} under #{build_path}/build/" >&2
+      exit 1
+    fi
+
+    copy_listed() {
+      local src_root="$1" dst_root="$2" list="$3"
+      [ -f "$list" ] || return 0
+
+      # files-list format: `<pkg>,./<path>` (one per line). Strip the
+      # `<pkg>,` prefix to get the relative path.
+      while IFS= read -r line; do
+        path="${line#*,}"
+        case "$path" in
+          # Drop dev/docs paths — runtime-only artefact.
+          ./usr/include/*|./usr/lib/pkgconfig/*) continue ;;
+          ./usr/share/doc/*|./usr/share/man/*|./usr/share/info/*) continue ;;
+          *.la) continue ;;
+          *) ;;
+        esac
+
+        rel="${path#./}"
+        src_path="$src_root/$rel"
+        dst_path="$dst_root/$rel"
+        [ -e "$src_path" ] || [ -L "$src_path" ] || continue
+
+        mkdir -p "$(dirname "$dst_path")"
+        cp -aP "$src_path" "$dst_path"
+      done < "$list"
+    }
+
+    copy_listed "#{pp_src}/target" "#{pp_dst}/target" "$BUILD_DIR/.files-list.txt"
+    copy_listed "#{pp_src}/staging" "#{pp_dst}/staging" "$BUILD_DIR/.files-list-staging.txt"
+
+    # Drop empty staging dir so Harvest's existence check skips it cleanly.
+    if [ -z "$(ls -A "#{pp_dst}/staging" 2>/dev/null)" ]; then
+      rmdir "#{pp_dst}/staging"
+    fi
+
+    # Make the extracted output owned by the host user so the Mix task
+    # (running as that user) can read it. The volume itself stays root-owned
+    # — that's fine, we never read it directly from the host.
+    chown -R "${HOST_UID}:${HOST_GID}" #{shell_quote(extract_dir)}
     """
   end
 

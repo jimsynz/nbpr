@@ -103,11 +103,12 @@ defmodule Mix.Tasks.Nbpr.Build do
     # trees they do on the host.
     deps_path = Mix.Project.deps_path()
 
-    Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env,
-      extra_mounts: [deps_path]
-    )
+    harvest_dir =
+      Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env,
+        extra_mounts: [deps_path]
+      )
 
-    sources = Harvest.harvest!(output_dir_br, pkg.br_package)
+    sources = Harvest.harvest!(harvest_dir, pkg.br_package)
     tarball = Pack.pack!(inputs, sources, output_dir)
 
     Mix.shell().info("[nbpr] packed #{tarball}")

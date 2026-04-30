@@ -25,7 +25,7 @@ defmodule NBPR.Buildroot.Build do
   """
 
   alias NBPR.Buildroot.Docker
-
+  alias NBPR.Buildroot.FilesList
   alias NBPR.Buildroot.Source
 
   @doc """
@@ -56,14 +56,45 @@ defmodule NBPR.Buildroot.Build do
       File.mkdir_p!(output_dir)
       File.write!(Path.join(output_dir, ".config"), defconfig_text)
       run_make!(br_source, output_dir, env, ["olddefconfig"])
-      run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"])
-      output_dir
+
+      # `<pkg>-dirclean && <pkg>` (not `<pkg>-rebuild`) so BR snapshots the
+      # before/after target trees and writes a populated `.files-list*.txt`.
+      # See NBPR.Buildroot.FilesList for the rationale.
+      run_make!(br_source, output_dir, env, ["#{br_package}-dirclean"])
+      run_make!(br_source, output_dir, env, [br_package])
+
+      extract_dir = output_dir <> ".extract"
+      File.rm_rf!(extract_dir)
+      build_dir = locate_build_dir!(output_dir, br_package)
+      pp_src = Path.join([output_dir, "per-package", br_package])
+      pp_dst = Path.join([extract_dir, "per-package", br_package])
+
+      FilesList.copy!(
+        Path.join(pp_src, "target"),
+        Path.join(pp_dst, "target"),
+        Path.join(build_dir, ".files-list.txt")
+      )
+
+      FilesList.copy!(
+        Path.join(pp_src, "staging"),
+        Path.join(pp_dst, "staging"),
+        Path.join(build_dir, ".files-list-staging.txt")
+      )
+
+      extract_dir
     else
       # Docker path: run BR build in a named volume (so hardlinks work),
       # extract per-package output to a host-accessible bind-mount dir.
+      #
+      # `extract_dir` MUST be a sibling of `output_dir`, never nested inside.
+      # `output_dir` is mounted as a Docker named volume; bind-mounting another
+      # path at a subpath of that volume creates filesystem-layering ambiguity
+      # (e.g. `rm -rf` inside the container only affects the overlay, not the
+      # underlying volume contents at the same path), which manifests as
+      # `cp: ... File exists` errors during extraction.
       slug = Path.basename(output_dir)
       volume = Docker.volume_name(slug)
-      extract_dir = Path.join(output_dir, ".nbpr-docker-extract")
+      extract_dir = output_dir <> ".extract"
 
       Docker.build!(
         br_source: br_source,
@@ -92,6 +123,21 @@ defmodule NBPR.Buildroot.Build do
   @spec build_env() :: [{String.t(), String.t()}]
   def build_env do
     [{"BR2_DL_DIR", Source.download_dir()}]
+  end
+
+  defp locate_build_dir!(output_dir, br_package) do
+    pattern = Path.join([output_dir, "build", "#{br_package}-*"])
+
+    case Path.wildcard(pattern) |> Enum.filter(&File.dir?/1) do
+      [dir] ->
+        dir
+
+      [] ->
+        raise "could not locate build dir for #{br_package} under #{Path.dirname(pattern)}"
+
+      many ->
+        raise "multiple build dirs match #{pattern}: #{inspect(many)}"
+    end
   end
 
   defp ensure_linux! do
