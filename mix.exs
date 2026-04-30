@@ -15,6 +15,16 @@ defmodule NBPR.Workspace.MixProject do
   """
   use Mix.Project
 
+  # Pinned nerves_system_* versions. The git tag is `v<version>`, and the
+  # version is what `Application.spec(:nerves_system_*, :vsn)` returns at
+  # build time → it becomes part of the artefact's cache key. Bumping
+  # any of these *will* invalidate prebuilt artefacts on GHCR for that
+  # (package, system) combination, since the system_version component of
+  # the cache key changes.
+  @system_versions %{
+    rpi4: "2.0.2"
+  }
+
   def project do
     [
       app: :nbpr_workspace,
@@ -46,9 +56,15 @@ defmodule NBPR.Workspace.MixProject do
       # match the others. As of this writing rpi4 v2.0.2 → nerves_system_br
       # 1.33.5; older systems (e.g. x86_64 v1.13.0 → 1.13.x) are
       # incompatible until they're bumped.
-      {:nerves_system_rpi4,
-       github: "nerves-project/nerves_system_rpi4", tag: "v2.0.2", runtime: false, targets: :rpi4}
+      system_dep(:rpi4, "nerves-project/nerves_system_rpi4")
     ] ++ package_deps()
+  end
+
+  defp system_dep(target, github) do
+    version = Map.fetch!(@system_versions, target)
+    app = String.to_atom("nerves_system_#{target}")
+
+    {app, github: github, tag: "v#{version}", runtime: false, targets: target}
   end
 
   # Auto-discover every `packages/nbpr_*/` and add it as a path dep so
