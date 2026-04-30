@@ -25,10 +25,13 @@ defmodule Mix.Tasks.Nbpr.New do
 
     short = name
     package = "nbpr_#{short}"
-    target_dir = Path.join("packages", package)
+    workspace = find_workspace_root!()
+    target_dir = Path.join([workspace, "packages", package])
 
     if File.exists?(target_dir) do
-      Mix.raise("#{target_dir} already exists; pick a different name or remove it first")
+      Mix.raise(
+        "#{Path.relative_to_cwd(target_dir)} already exists; pick a different name or remove it first"
+      )
     end
 
     module = "NBPR.#{Macro.camelize(short)}"
@@ -61,6 +64,35 @@ defmodule Mix.Tasks.Nbpr.New do
           "The generator adds the `nbpr_` prefix automatically."
       )
     end
+  end
+
+  defp find_workspace_root! do
+    case do_find_workspace_root(File.cwd!()) do
+      nil ->
+        Mix.raise("""
+        Could not locate nbpr workspace root from current directory.
+
+        The workspace root is the directory containing both `PLAN.md` and a
+        `nbpr/` subdirectory (the library). Run `mix nbpr.new` from anywhere
+        inside the nbpr workspace tree.
+        """)
+
+      path ->
+        path
+    end
+  end
+
+  defp do_find_workspace_root(path) do
+    cond do
+      workspace_root?(path) -> path
+      path == "/" -> nil
+      true -> do_find_workspace_root(Path.dirname(path))
+    end
+  end
+
+  defp workspace_root?(path) do
+    File.exists?(Path.join(path, "PLAN.md")) and
+      File.dir?(Path.join(path, "nbpr"))
   end
 
   defp build_files(short, package, module, project_module) do

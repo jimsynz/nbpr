@@ -8,6 +8,9 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       Path.join(System.tmp_dir!(), "nbpr_new_test_#{System.unique_integer([:positive])}")
 
     File.mkdir_p!(tmp)
+    File.write!(Path.join(tmp, "PLAN.md"), "# fixture workspace\n")
+    File.mkdir_p!(Path.join(tmp, "nbpr"))
+
     on_exit(fn -> File.rm_rf!(tmp) end)
 
     {:ok, tmp: tmp}
@@ -93,6 +96,33 @@ defmodule Mix.Tasks.Nbpr.NewTest do
 
         assert_raise Mix.Error, ~r/already exists/, fn ->
           Mix.Tasks.Nbpr.New.run(["already_there"])
+        end
+      end)
+    end
+  end
+
+  describe "workspace-root detection" do
+    test "finds the workspace root when run from a subdirectory", %{tmp: tmp} do
+      subdir = Path.join(tmp, "nbpr")
+
+      capture_io(fn ->
+        File.cd!(subdir, fn -> Mix.Tasks.Nbpr.New.run(["nested"]) end)
+      end)
+
+      assert File.exists?(Path.join(tmp, "packages/nbpr_nested/mix.exs"))
+      refute File.exists?(Path.join(subdir, "packages/nbpr_nested/mix.exs"))
+    end
+
+    test "raises when not in a workspace tree" do
+      not_a_workspace =
+        Path.join(System.tmp_dir!(), "nbpr_no_workspace_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(not_a_workspace)
+      on_exit(fn -> File.rm_rf!(not_a_workspace) end)
+
+      File.cd!(not_a_workspace, fn ->
+        assert_raise Mix.Error, ~r/Could not locate nbpr workspace root/, fn ->
+          Mix.Tasks.Nbpr.New.run(["foo"])
         end
       end)
     end
