@@ -1,9 +1,9 @@
 defmodule Mix.Tasks.Nbpr.Publish do
-  @shortdoc "Upload a packed artefact tarball to a GitHub Release"
+  @shortdoc "Upload a packed artefact tarball to its declared backend"
 
   @moduledoc """
-  Uploads a tarball produced by `mix nbpr.pack` to a GitHub Release on the
-  repository declared by the package's `artifact_sites:`.
+  Uploads a tarball produced by `mix nbpr.pack` to the first supported backend
+  declared in the package's `artifact_sites:`.
 
       mix nbpr.publish <Module> <path-to-tarball>
 
@@ -11,25 +11,23 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
       mix nbpr.publish NBPR.Jq /path/to/nbpr_jq-1.7.1-...-cb13a42462c2806d.tar.gz
 
-  ## What it does
+  ## Backends
 
-  1. Reads `__nbpr_package__/0` on the supplied module to get the
-     `artifact_sites` (only `{:github_releases, "owner/repo"}` is supported)
-     and infer the release tag — `<package>-v<package-version>`, where
-     `<package-version>` is the running app's version (`Application.spec/2`).
-  2. Creates the release if it doesn't exist (`gh release create`), or
-     uploads the asset to the existing release (`gh release upload`).
-  3. Replaces an existing asset of the same name (`--clobber`).
+    * `{:ghcr, "ghcr.io/<owner>"}` — pushes via `oras` to
+      `ghcr.io/<owner>/<package>:<tag>`. Requires `oras` on PATH and an oras
+      login session with `write:packages` (e.g. `gh auth token | oras login
+      ghcr.io -u <user> --password-stdin`).
+    * `{:github_releases, "<owner>/<repo>"}` — uploads via `gh release` to
+      tag `<package>-v<package-version>`, creating the release if needed.
+      Requires `gh` on PATH and authenticated.
 
-  ## Requirements
-
-  The `gh` CLI must be on PATH and authenticated (`gh auth status`). Token
-  scope must allow writes to the target repository.
+  Sites are tried in `artifact_sites` order; the first site whose backend has
+  the required CLI installed is used.
 
   ## Flags
 
-    * `--draft` — create the release as a draft (only applies on first creation)
-    * `--prerelease` — mark the release as a prerelease (first creation only)
+    * `--draft` — only applies to `github_releases`; creates the release as a draft on first creation.
+    * `--prerelease` — only applies to `github_releases`; marks the release as a prerelease on first creation.
   """
 
   use Mix.Task
@@ -43,7 +41,6 @@ defmodule Mix.Tasks.Nbpr.Publish do
     {opts, positional, _} = OptionParser.parse(args, switches: @switches)
 
     {module_name, tarball} = parse_positional!(positional)
-
     module = Module.concat([module_name])
 
     unless Code.ensure_loaded?(module) and function_exported?(module, :__nbpr_package__, 0) do
@@ -55,26 +52,91 @@ defmodule Mix.Tasks.Nbpr.Publish do
     end
 
     pkg = module.__nbpr_package__()
-    repo = github_repo!(pkg)
-    tag = release_tag!(pkg)
 
-    ensure_gh!()
-    ensure_release!(repo, tag, opts)
-    upload_asset!(repo, tag, tarball)
-
-    Mix.shell().info("[nbpr] uploaded #{Path.basename(tarball)} to #{repo}@#{tag}")
+    case pick_site(pkg) do
+      {:ghcr, prefix} -> publish_ghcr!(prefix, pkg, tarball)
+      {:github_releases, owner_repo} -> publish_release!(owner_repo, pkg, tarball, opts)
+      nil -> Mix.raise("no supported `artifact_sites:` declared on #{inspect(module)}")
+    end
   end
 
   defp parse_positional!([module, tarball]), do: {module, tarball}
   defp parse_positional!(_), do: Mix.raise("usage: mix nbpr.publish <Module> <tarball>")
 
-  defp github_repo!(pkg) do
-    case Enum.find(pkg.artifact_sites, &match?({:github_releases, _}, &1)) do
-      {:github_releases, owner_repo} ->
-        owner_repo
+  defp pick_site(pkg) do
+    Enum.find(pkg.artifact_sites, fn
+      {:ghcr, _} -> true
+      {:github_releases, _} -> true
+      _ -> false
+    end)
+  end
 
-      nil ->
-        Mix.raise("#{inspect(pkg.module)} has no github_releases artifact_site; cannot publish")
+  # ───────── GHCR ─────────
+
+  defp publish_ghcr!("ghcr.io/" <> owner = _prefix, pkg, tarball) do
+    unless System.find_executable("oras") do
+      Mix.raise("`oras` CLI not found on PATH; install from https://oras.land/")
+    end
+
+    package_app = "nbpr_#{pkg.name}"
+    image = "ghcr.io/#{owner}/#{package_app}"
+    tag = ghcr_tag!(tarball, package_app)
+    reference = "#{image}:#{tag}"
+
+    basename = Path.basename(tarball)
+
+    args = [
+      "push",
+      reference,
+      "--artifact-type",
+      "application/vnd.nbpr.artifact.v1",
+      "#{basename}:application/vnd.nbpr.tarball.v1+tar+gzip"
+    ]
+
+    case System.cmd("oras", args, cd: Path.dirname(tarball), stderr_to_stdout: true) do
+      {_, 0} ->
+        Mix.shell().info("[nbpr] pushed #{basename} to #{reference}")
+
+      {output, status} ->
+        Mix.raise("oras push failed (#{status}): #{output}")
+    end
+  end
+
+  defp publish_ghcr!(prefix, _pkg, _tarball) do
+    Mix.raise("ghcr prefix must start with `ghcr.io/`; got #{inspect(prefix)}")
+  end
+
+  defp ghcr_tag!(tarball_path, package_app) do
+    base = Path.basename(tarball_path, ".tar.gz")
+    prefix = "#{package_app}-"
+
+    unless String.starts_with?(base, prefix) do
+      Mix.raise(
+        "tarball filename #{inspect(base)}.tar.gz does not start with #{inspect(prefix)}; " <>
+          "is it a canonical `mix nbpr.pack` output?"
+      )
+    end
+
+    String.replace_prefix(base, prefix, "")
+  end
+
+  # ───────── GitHub Releases ─────────
+
+  defp publish_release!(owner_repo, pkg, tarball, opts) do
+    unless System.find_executable("gh") do
+      Mix.raise("`gh` CLI not found on PATH; install from https://cli.github.com/")
+    end
+
+    tag = release_tag!(pkg)
+
+    ensure_release!(owner_repo, tag, opts)
+
+    case run_gh(["release", "upload", tag, tarball, "--repo", owner_repo, "--clobber"]) do
+      {_, 0} ->
+        Mix.shell().info("[nbpr] uploaded #{Path.basename(tarball)} to #{owner_repo}@#{tag}")
+
+      {output, status} ->
+        Mix.raise("gh release upload failed (#{status}): #{output}")
     end
   end
 
@@ -90,26 +152,17 @@ defmodule Mix.Tasks.Nbpr.Publish do
     "#{package_app}-v#{version}"
   end
 
-  defp ensure_gh! do
-    unless System.find_executable("gh") do
-      Mix.raise("`gh` CLI not found on PATH; install from https://cli.github.com/")
-    end
-  end
-
-  defp ensure_release!(repo, tag, opts) do
-    case run_gh(["release", "view", tag, "--repo", repo]) do
+  defp ensure_release!(owner_repo, tag, opts) do
+    case run_gh(["release", "view", tag, "--repo", owner_repo]) do
       {_, 0} ->
         :exists
 
       {_, _} ->
         flags =
-          ["release", "create", tag, "--repo", repo, "--title", tag]
+          ["release", "create", tag, "--repo", owner_repo, "--title", tag]
           |> append_if(opts[:draft], "--draft")
           |> append_if(opts[:prerelease], "--prerelease")
-          |> Kernel.++([
-            "--notes",
-            "Automated release for #{tag}."
-          ])
+          |> Kernel.++(["--notes", "Automated release for #{tag}."])
 
         case run_gh(flags) do
           {_, 0} -> :created
@@ -118,16 +171,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
     end
   end
 
-  defp upload_asset!(repo, tag, tarball) do
-    case run_gh(["release", "upload", tag, tarball, "--repo", repo, "--clobber"]) do
-      {_, 0} -> :ok
-      {output, status} -> Mix.raise("gh release upload failed (#{status}): #{output}")
-    end
-  end
-
-  defp run_gh(args) do
-    System.cmd("gh", args, stderr_to_stdout: true)
-  end
+  defp run_gh(args), do: System.cmd("gh", args, stderr_to_stdout: true)
 
   defp append_if(args, true, flag), do: args ++ [flag]
   defp append_if(args, _, _flag), do: args
