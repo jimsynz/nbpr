@@ -64,13 +64,15 @@ defmodule NBPR.Buildroot.Docker do
       |> Enum.uniq()
       |> Enum.filter(&File.exists?/1)
 
+    make_args = ["O=#{output_dir}" | args]
+
     docker_args =
       ["run", "--rm", "--user", "#{user_id()}:#{group_id()}"] ++
         bind_mount_args(mount_paths) ++
         env_args(env) ++
-        ["-w", br_source, @image, "make"] ++ args
+        ["-w", br_source, @image, "make"] ++ make_args
 
-    Mix.shell().info("[nbpr] running in docker: make #{Enum.join(args, " ")}")
+    Mix.shell().info("[nbpr] running in docker: make #{Enum.join(make_args, " ")}")
 
     case System.cmd("docker", docker_args,
            stderr_to_stdout: true,
