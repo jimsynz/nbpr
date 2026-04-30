@@ -3,17 +3,19 @@ defmodule NBPR.Buildroot.Build do
   Drives a per-package Buildroot build.
 
   Given a patched BR source tree (from `NBPR.Buildroot.Source.ensure!/2`),
-  a rendered defconfig (from `NBPR.Buildroot.Defconfig.render!/3`), and a
-  Buildroot package name, runs `make olddefconfig` followed by
-  `make <pkg>-rebuild` to produce per-package output at
-  `<output_dir>/per-package/<pkg>/{target,staging}` and aggregated
-  `<output_dir>/legal-info/`.
+  a stable output dir, a rendered defconfig (from
+  `NBPR.Buildroot.Defconfig.render!/3`), and a Buildroot package name,
+  runs `make olddefconfig` followed by `make <pkg>-rebuild` to produce
+  per-package output at `<output_dir>/per-package/<pkg>/{target,staging}`.
 
-  Output goes to a fresh temp dir per build — BR's `.config` is a single
-  global file per build tree, so we don't share output across packages
-  with different configs. Buildroot's `BR2_DL_DIR` cache handles
-  source-tarball reuse across builds; the per-build `output/` is cheap
-  to discard.
+  ## Output dir reuse
+
+  The caller supplies the `output_dir`. For interactive speed, use a
+  stable per-(system, BR-version) path — the toolchain extraction,
+  host-skeleton, host-fakedate, and other shared steps then survive
+  between invocations and only the package being rebuilt actually
+  compiles. `make olddefconfig` reconciles defconfig drift across
+  builds (e.g. enabling a different `BR2_PACKAGE_*=y`).
 
   Currently Linux-only. macOS and other hosts will be supported via a
   Docker wrapper in a later phase.
@@ -23,7 +25,7 @@ defmodule NBPR.Buildroot.Build do
 
   @doc """
   Builds `br_package` against `defconfig_text` using the BR tree at
-  `br_source`. Returns the absolute path to the build's `O=<dir>` output.
+  `br_source`, with output going to `output_dir`. Returns `output_dir`.
 
   `extra_env` is merged into the make invocation's env. Use it to pass
   Nerves-specific variables that the system's defconfig references —
@@ -31,16 +33,19 @@ defmodule NBPR.Buildroot.Build do
   resolves) and `BR2_EXTERNAL` (so the system's BR external tree is
   visible).
 
-  The caller owns the output dir's lifetime — typically harvested
-  immediately afterwards by `NBPR.Buildroot.Harvest` and then removed.
+  `output_dir` is created if missing. Existing contents are preserved —
+  this is the design — so subsequent builds reuse the toolchain,
+  skeleton, and other unchanging packages. To force from-scratch,
+  `File.rm_rf!(output_dir)` before calling.
   """
-  @spec build!(Path.t(), String.t(), String.t(), [{String.t(), String.t()}]) :: Path.t()
-  def build!(br_source, defconfig_text, br_package, extra_env \\ [])
-      when is_binary(br_source) and is_binary(defconfig_text) and is_binary(br_package) and
-             is_list(extra_env) do
+  @spec build!(Path.t(), Path.t(), String.t(), String.t(), [{String.t(), String.t()}]) ::
+          Path.t()
+  def build!(br_source, output_dir, defconfig_text, br_package, extra_env \\ [])
+      when is_binary(br_source) and is_binary(output_dir) and is_binary(defconfig_text) and
+             is_binary(br_package) and is_list(extra_env) do
     ensure_linux!()
 
-    output_dir = make_output_dir!(br_package)
+    File.mkdir_p!(output_dir)
     File.write!(Path.join(output_dir, ".config"), defconfig_text)
 
     env = build_env() ++ extra_env
@@ -78,17 +83,6 @@ defmodule NBPR.Buildroot.Build do
         with BR already set up).
         """
     end
-  end
-
-  defp make_output_dir!(br_package) do
-    dir =
-      Path.join([
-        System.tmp_dir!(),
-        "nbpr_br_build_#{br_package}_#{System.unique_integer([:positive])}"
-      ])
-
-    File.mkdir_p!(dir)
-    dir
   end
 
   defp run_make!(cwd, output_dir, env, targets) do

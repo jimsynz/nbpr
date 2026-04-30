@@ -81,6 +81,9 @@ defmodule Mix.Tasks.Nbpr.Build do
 
     {:ok, nerves_system_br_path} = Buildroot.nerves_system_br_path()
 
+    {:ok, br_version} = Buildroot.br_version(nerves_system_br_path)
+    output_dir_br = stable_output_dir(system_app, br_version)
+
     defconfig_text = render_defconfig!(pkg, system_source_path, build_opts)
 
     extra_env = [
@@ -95,16 +98,38 @@ defmodule Mix.Tasks.Nbpr.Build do
       {"BR2_EXTERNAL", nerves_system_br_path}
     ]
 
-    output_dir_br = Build.build!(br_source, defconfig_text, pkg.br_package, extra_env)
+    Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env)
 
-    try do
-      sources = Harvest.harvest!(output_dir_br, pkg.br_package)
-      tarball = Pack.pack!(inputs, sources, output_dir)
+    sources = Harvest.harvest!(output_dir_br, pkg.br_package)
+    tarball = Pack.pack!(inputs, sources, output_dir)
 
-      Mix.shell().info("[nbpr] packed #{tarball}")
-      tarball
-    after
-      File.rm_rf!(output_dir_br)
+    Mix.shell().info("[nbpr] packed #{tarball}")
+    tarball
+  end
+
+  # Stable per-(system, BR-version) output dir. Reusing across builds keeps
+  # toolchain extraction + host-skeleton + other unchanging packages around;
+  # `make olddefconfig` reconciles defconfig drift between builds.
+  defp stable_output_dir(system_app, br_version) do
+    Path.join([
+      data_dir(),
+      "nbpr",
+      "build",
+      "#{system_app}-#{br_version}"
+    ])
+  end
+
+  defp data_dir do
+    cond do
+      dir = System.get_env("NERVES_ARTIFACTS_DIR") ->
+        dir
+
+      true ->
+        base =
+          System.get_env("XDG_DATA_HOME") ||
+            Path.join(System.user_home!(), ".local/share")
+
+        Path.join(base, "nerves")
     end
   end
 

@@ -30,7 +30,7 @@ defmodule NBPR.Buildroot.BuildTest do
 
         _ ->
           assert_raise RuntimeError, ~r/requires a Linux host/, fn ->
-            Build.build!("/nonexistent", "BR2_arm=y\n", "jq")
+            Build.build!("/nonexistent", "/tmp/out", "BR2_arm=y\n", "jq")
           end
       end
     end
