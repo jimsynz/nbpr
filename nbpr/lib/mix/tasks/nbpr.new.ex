@@ -51,6 +51,16 @@ defmodule Mix.Tasks.Nbpr.New do
           "Must be lowercase, start with a letter, and contain only [a-z0-9_]."
       )
     end
+
+    if String.starts_with?(name, "nbpr_") do
+      stripped = String.replace_prefix(name, "nbpr_", "")
+
+      Mix.raise(
+        "package name #{inspect(name)} already starts with `nbpr_`; " <>
+          "drop the prefix and use #{inspect(stripped)} instead. " <>
+          "The generator adds the `nbpr_` prefix automatically."
+      )
+    end
   end
 
   defp build_files(short, package, module, project_module) do

@@ -77,6 +77,12 @@ defmodule Mix.Tasks.Nbpr.NewTest do
         Mix.Tasks.Nbpr.New.run(["_foo"])
       end
     end
+
+    test "rejects a name that already includes the `nbpr_` prefix" do
+      assert_raise Mix.Error, ~r/already starts with `nbpr_`.*use "jq" instead/s, fn ->
+        Mix.Tasks.Nbpr.New.run(["nbpr_jq"])
+      end
+    end
   end
 
   describe "run/1 when target exists" do
