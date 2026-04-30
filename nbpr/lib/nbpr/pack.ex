@@ -3,11 +3,22 @@ defmodule NBPR.Pack do
   Produces a canonical NBPR artefact tarball from a directory of built files.
 
   Given the build inputs (package, version, system, system-version,
-  build-opts) plus paths to one or more of `target/`, `staging/`, and
-  `legal-info/` source directories, this module assembles them into a
-  single top-level directory matching `NBPR.Artifact.dir_name/1`, drops a
-  `manifest.json` next to them, and tarballs into a file named per
+  build-opts) plus paths to one or more of `target/`, `staging/`,
+  `legal-info/`, and `rootfs/` source directories, this module assembles
+  them into a single top-level directory matching `NBPR.Artifact.dir_name/1`,
+  drops a `manifest.json` next to them, and tarballs into a file named per
   `NBPR.Artifact.tarball_name/1`.
+
+  The four sources are routed differently at install time:
+
+  - `target/` → installed into the package's `priv/` (binaries, libraries,
+    package-specific configs)
+  - `staging/` → installed into the build sysroot for NIF cross-compilation
+    (currently unused by the installer)
+  - `rootfs/` → installed into Nerves' `build_rootfs_overlay` so the files
+    end up at standard rootfs paths in the firmware (kernel modules,
+    daemons that hardcode `/etc/foo.conf`, etc.)
+  - `legal-info/` → licence aggregation
 
   Pure I/O on the local filesystem; no network, no Buildroot. Source-build
   drivers (eventual `mix nbpr.build` and friends) call into this once they
@@ -19,6 +30,7 @@ defmodule NBPR.Pack do
   @type sources :: %{
           optional(:target) => Path.t(),
           optional(:staging) => Path.t(),
+          optional(:rootfs) => Path.t(),
           optional(:legal_info) => Path.t()
         }
 
@@ -52,7 +64,7 @@ defmodule NBPR.Pack do
       [:json.encode(Artifact.manifest(inputs)), ?\n]
     )
 
-    Enum.each([:target, :staging, :legal_info], fn key ->
+    Enum.each([:target, :staging, :rootfs, :legal_info], fn key ->
       copy_source!(sources, key, inner)
     end)
   end
@@ -75,6 +87,7 @@ defmodule NBPR.Pack do
 
   defp dest_name(:target), do: "target"
   defp dest_name(:staging), do: "staging"
+  defp dest_name(:rootfs), do: "rootfs"
   defp dest_name(:legal_info), do: "legal-info"
 
   defp tar!(staging_dir, top_level_name, tar_path) do

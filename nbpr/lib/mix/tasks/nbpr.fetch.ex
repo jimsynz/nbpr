@@ -86,6 +86,12 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     Path.join([Mix.Project.build_path(), "lib", Atom.to_string(app), "priv"])
   end
 
+  @doc false
+  @spec build_rootfs_overlay_dir() :: Path.t()
+  def build_rootfs_overlay_dir do
+    Path.join([Mix.Project.build_path(), "nerves", "rootfs_overlay"])
+  end
+
   defp system_app! do
     unless Code.ensure_loaded?(Nerves.Env) do
       Mix.raise("Nerves.Env is not loaded; ensure :nerves is a project dep")
@@ -139,10 +145,29 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       :ok = Cache.extract!(tarball, inputs)
     end
 
-    target_src = Path.join(Artifact.cache_dir(inputs), "target")
-    priv_dest = priv_dir_for(app)
+    cache_dir = Artifact.cache_dir(inputs)
 
-    File.mkdir_p!(priv_dest)
-    File.cp_r!(target_src, priv_dest)
+    install_target!(cache_dir, app)
+    install_rootfs!(cache_dir)
+  end
+
+  defp install_target!(cache_dir, app) do
+    target_src = Path.join(cache_dir, "target")
+
+    if File.dir?(target_src) do
+      priv_dest = priv_dir_for(app)
+      File.mkdir_p!(priv_dest)
+      File.cp_r!(target_src, priv_dest)
+    end
+  end
+
+  defp install_rootfs!(cache_dir) do
+    rootfs_src = Path.join(cache_dir, "rootfs")
+
+    if File.dir?(rootfs_src) do
+      overlay_dest = build_rootfs_overlay_dir()
+      File.mkdir_p!(overlay_dest)
+      File.cp_r!(rootfs_src, overlay_dest)
+    end
   end
 end

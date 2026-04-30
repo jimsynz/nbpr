@@ -11,6 +11,7 @@ defmodule Mix.Tasks.Nbpr.Pack do
           --system-version 2.0.1 \\
           --target /path/to/built/target \\
           [--staging /path/to/built/staging] \\
+          [--rootfs /path/to/built/rootfs] \\
           [--legal-info /path/to/built/legal-info] \\
           [--build-opts key=value,key2=value2] \\
           [-o /output/dir]
@@ -32,6 +33,7 @@ defmodule Mix.Tasks.Nbpr.Pack do
     system_version: :string,
     target: :string,
     staging: :string,
+    rootfs: :string,
     legal_info: :string,
     build_opts: :string,
     output: :string
@@ -82,10 +84,11 @@ defmodule Mix.Tasks.Nbpr.Pack do
     %{}
     |> maybe_add(:target, opts[:target])
     |> maybe_add(:staging, opts[:staging])
+    |> maybe_add(:rootfs, opts[:rootfs])
     |> maybe_add(:legal_info, opts[:legal_info])
     |> case do
       sources when map_size(sources) == 0 ->
-        Mix.raise("at least one of --target, --staging, --legal-info must be provided")
+        Mix.raise("at least one of --target, --staging, --rootfs, --legal-info must be provided")
 
       sources ->
         sources

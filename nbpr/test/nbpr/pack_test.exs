@@ -75,6 +75,26 @@ defmodule NBPR.PackTest do
       end
     end
 
+    test "rootfs source ends up as the rootfs/ subdir in the tarball", %{tmp: tmp} do
+      target_src = Path.join(tmp, "src/target")
+      File.mkdir_p!(Path.join(target_src, "usr/sbin"))
+      File.write!(Path.join(target_src, "usr/sbin/zpool"), "stub")
+
+      rootfs_src = Path.join(tmp, "src/rootfs")
+      File.mkdir_p!(Path.join(rootfs_src, "lib/modules/6.12.0/extra"))
+      File.write!(Path.join(rootfs_src, "lib/modules/6.12.0/extra/zfs.ko"), "stub kmod")
+
+      output_dir = Path.join(tmp, "out")
+      tarball = NBPR.Pack.pack!(@inputs, %{target: target_src, rootfs: rootfs_src}, output_dir)
+
+      {:ok, entries} = :erl_tar.table(String.to_charlist(tarball), [:compressed])
+      paths = Enum.map(entries, &to_string/1)
+      dir = NBPR.Artifact.dir_name(@inputs)
+
+      assert "#{dir}/target/usr/sbin/zpool" in paths
+      assert "#{dir}/rootfs/lib/modules/6.12.0/extra/zfs.ko" in paths
+    end
+
     test "raises when a source path is not a directory", %{tmp: tmp} do
       bogus = Path.join(tmp, "not-a-dir")
       File.write!(bogus, "i am a file")

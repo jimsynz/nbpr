@@ -18,4 +18,11 @@ defmodule Mix.Tasks.Nbpr.FetchTest do
       assert Fetch.priv_dir_for(:nbpr_jq) == expected
     end
   end
+
+  describe "build_rootfs_overlay_dir/0" do
+    test "returns the same path Mix.Tasks.Firmware uses for its build overlay" do
+      expected = Path.join([Mix.Project.build_path(), "nerves", "rootfs_overlay"])
+      assert Fetch.build_rootfs_overlay_dir() == expected
+    end
+  end
 end
