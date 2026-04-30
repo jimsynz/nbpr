@@ -41,14 +41,13 @@ defmodule NBPR.Workspace.MixProject do
       # Systems to source-build against. We pull these from GitHub rather
       # than Hex because the Hex tarballs deliberately exclude Config.in
       # and patches/ (Hex users consume the prebuilt artefact, not source).
-      # Add more as packages need them.
+      #
+      # Adding a new target system requires its `nerves_system_br` pin to
+      # match the others. As of this writing rpi4 v2.0.2 → nerves_system_br
+      # 1.33.5; older systems (e.g. x86_64 v1.13.0 → 1.13.x) are
+      # incompatible until they're bumped.
       {:nerves_system_rpi4,
-       github: "nerves-project/nerves_system_rpi4", tag: "v2.0.2", runtime: false, targets: :rpi4},
-      {:nerves_system_x86_64,
-       github: "nerves-project/nerves_system_x86_64",
-       tag: "v1.13.0",
-       runtime: false,
-       targets: :x86_64}
+       github: "nerves-project/nerves_system_rpi4", tag: "v2.0.2", runtime: false, targets: :rpi4}
     ] ++ package_deps()
   end
 
