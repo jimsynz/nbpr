@@ -37,10 +37,10 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
   end
 
   defp start_http_apps! do
-    # `:inets.start/0` starts the inets application *and* sets up the default
-    # httpc profile. `Application.ensure_all_started(:inets)` is not enough
-    # — it brings up the application but not the profile, so :httpc.request
-    # crashes looking for `:http_util` on some OTP versions.
+    # `app.config` loads dep apps but doesn't start them. `:inets.start/0`
+    # both starts the inets application and initialises the default httpc
+    # profile — `Application.ensure_all_started(:inets)` is not enough on
+    # OTP 28+, where the profile setup is required for `:httpc.request/4`.
     case :inets.start() do
       :ok -> :ok
       {:error, {:already_started, :inets}} -> :ok

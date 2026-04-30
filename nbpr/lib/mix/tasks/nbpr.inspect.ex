@@ -11,14 +11,14 @@ defmodule Mix.Tasks.Nbpr.Inspect do
 
   use Mix.Task
 
+  @requirements ["app.config"]
+
   @impl Mix.Task
   def run([]) do
     Mix.raise("usage: mix nbpr.inspect <Module>")
   end
 
   def run([module_name | _]) do
-    Mix.Task.run("compile", [])
-
     module = Module.concat([module_name])
 
     unless Code.ensure_loaded?(module) and function_exported?(module, :__nbpr_package__, 0) do

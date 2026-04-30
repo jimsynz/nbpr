@@ -32,10 +32,10 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   alias NBPR.Artifact
   alias NBPR.Artifact.{Cache, Fetcher}
 
+  @requirements ["app.config"]
+
   @impl Mix.Task
   def run(_args) do
-    Mix.Task.run("loadpaths", [])
-
     if Mix.target() == :host do
       Mix.raise("mix nbpr.fetch must run with a real MIX_TARGET; got :host")
     end
