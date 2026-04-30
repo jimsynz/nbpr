@@ -1,6 +1,6 @@
 # NBPR Spike Plan
 
-**Status:** pre-spike. Workspace freshly created; no code yet.
+**Status:** Phase 1 + Phase 2 complete; upstream nerves PR open ([#1164](https://github.com/nerves-project/nerves/pull/1164)). Phase 4 (source-build runner) is the next major piece.
 **Last updated:** 2026-04-30
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. A user's app declares `{:nbpr_jq, "~> 1.0", repo: "nbpr"}` and gets the binary in their rootfs at firmware build time, with optional MuonTrap supervision wrappers for daemon-bearing packages.
@@ -107,12 +107,20 @@ Validates the resolve path before the build path. Cheaper to debug.
 - Invokes Buildroot via Docker (reuse `nerves_system_br`'s build container approach).
 - Sets `BR2_EXTERNAL_NBPR_*` to the package's BR external tree (or none if mainline-BR).
 - Applies the package's `build_opts` as `BR2_PACKAGE_*` settings.
-- `make <pkg>-rebuild`, harvest from per-package output dir, tar up.
+- `make <pkg>-rebuild`, harvest from per-package output dir, hand off to `NBPR.Pack`.
+
+**Caching constraints (binding):**
+
+Buildroot is huge. Every part of the source-build path that *can* be shared *must* be:
+
+- **BR source tree** is downloaded once per BR version into `$NERVES_DATA_DIR/nbpr/buildroot/<br_version>/` and treated as read-only thereafter. Every nbpr build for that BR version mounts/uses the same tree.
+- **BR download cache** (`dl/`) lives at `$NERVES_DATA_DIR/nbpr/buildroot-dl/` and is shared across builds and BR versions. Source tarballs are never invalidated; the cache just accumulates.
+- **Per-build outputs** use BR's `O=<dir>` and `BR2_PER_PACKAGE_DIRECTORIES=y` so individual package builds don't share output state, can be wiped at will, and never contend with each other or the shared source tree.
 
 **Risks/unknowns:**
 - Buildroot per-package output dir mode is supposed to make this clean but has known sharp edges with packages that touch shared `target-finalize` hooks. Probably fine for `jq`; deliberate test on something stateful before declaring victory.
 - Docker requirement: same as system builds today, so not a new burden, but document explicitly.
-- First-build performance: cache the BR `dl/` directory.
+- BR-version discovery: pinned by the system's `nerves_system_br` dep version. Need a reliable way to map `nerves_system_br x.y.z` → BR version (`BR_VERSION` from its `mix.exs` or the BR source tarball URL).
 
 ### Phase 5 — `:nbpr_dnsmasq` with daemon module generation
 
@@ -136,6 +144,15 @@ Validates the resolve path before the build path. Cheaper to debug.
 **Risks/unknowns:**
 - Matrix size: even minimal (rpi4 + x86_64) × (current + N-1 system version) × N packages is non-trivial CI minutes. Acceptable for spike; revisit if it gets unwieldy.
 - Hex publish needs API tokens for the `nbpr` org — bootstrapping step.
+
+## Phase 2 lessons (post-spike notes)
+
+Things learned during Phase 2 worth flagging for future phases:
+
+- **Tarball flat layout matters.** macOS' default `tar` writes AppleDouble `._*` metadata files alongside real entries, which breaks our "single top-level directory" invariant. Stub-build scripts and any future `Pack` users must use `COPYFILE_DISABLE=1 tar` (or stick to `:erl_tar`, which doesn't have the issue).
+- **`:inets.start/0` not `Application.ensure_all_started(:inets)`.** The latter brings up the application but not the default httpc profile, so `:httpc.request/4` crashes looking for `:http_util` on some OTP versions. The Erlang-style direct start does both. Captured in the GitHubReleases resolver.
+- **Mix tasks don't auto-start the host project's apps.** A Mix task that needs a runtime app (like inets) has to explicitly start it; relying on `extra_applications` only works once the host project's `Application.start` callback has fired.
+- **Path deps work cleanly across the workspace and surrounding repos.** `:nbpr` from `../../nbpr/nbpr`, `:nerves` from `../../nerves` (on the upstream branch), `:nbpr_jq` from `../../nbpr/packages/nbpr_jq` — all resolved without surprises.
 
 ## Cross-cutting decisions already made
 
