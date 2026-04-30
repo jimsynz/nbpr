@@ -1,0 +1,20 @@
+{
+  "name": "nbpr",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "workspaceFolder": "/workspaces/nbpr",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nbpr,type=bind,consistency=cached",
+  "forwardPorts": [4000],
+  "portsAttributes": {
+    "4000": {
+      "label": "Phoenix Dev Server"
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli": {},
+    "ghcr.io/devcontainers-extra/features/apt-packages:1": {
+      "packages": "autoconf,automake,bc,bison,build-essential,ca-certificates,cpio,curl,file,flex,fop,g++,gawk,git,gzip,help2man,libarchive-dev,libconfuse-dev,libgl1-mesa-dev,libglu1-mesa-dev,libmnl-dev,libncurses-dev,libpng-dev,libssh-dev,libwxgtk-webview3.2-dev,libwxgtk3.2-dev,libxml2-utils,m4,patch,pkg-config,python3,rsync,squashfs-tools,ssh-askpass,texinfo,unixodbc-dev,unzip,wget,xsltproc,xz-utils"
+    },
+    "ghcr.io/devcontainer-community/devcontainer-features/asdf-vm.com:1": {}
+  },
+  "onCreateCommand": "bash .devcontainer/setup.sh"
+}
