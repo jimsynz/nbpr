@@ -141,15 +141,16 @@ defmodule NBPR.Buildroot.Source do
   end
 
   defp extract_tar!(tarball, dest_dir) do
-    case :erl_tar.extract(
-           String.to_charlist(tarball),
-           [:compressed, {:cwd, String.to_charlist(dest_dir)}]
-         ) do
-      :ok ->
+    # Shell out to tar rather than :erl_tar — Buildroot's source tree
+    # contains symlinks like `linux/linux.hash -> ../linux/linux.hash` that
+    # :erl_tar's security checks (correctly) reject as "unsafe", but they
+    # are harmless within BR's own layout. system tar handles them fine.
+    case System.cmd("tar", ["-xzf", tarball, "-C", dest_dir], stderr_to_stdout: true) do
+      {_, 0} ->
         :ok
 
-      {:error, reason} ->
-        raise "BR extract failed: #{inspect(reason)}"
+      {output, status} ->
+        raise "BR extract failed (tar exit #{status}): #{String.trim(output)}"
     end
   end
 

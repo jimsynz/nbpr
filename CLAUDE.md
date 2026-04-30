@@ -24,10 +24,22 @@ Out of scope:
 
 Flat monorepo, not an umbrella. See `PLAN.md` for the full tree. Briefly:
 
+- `mix.exs` (root) — the **build-harness** Mix project. Pulls in `:nerves`, the `nerves_system_*` deps for every target we want to build for, and every `packages/nbpr_*/` as a path dep. `mix nbpr.build` runs from here so `Nerves.Env.system/0` resolves and the `NBPR.<Camel>` modules are loadable. Not a Nerves application, not user-facing — just a tooling shim.
 - `nbpr/` — the library: `NBPR.BrPackage` macro, build runner, artefact resolver, `mix firmware` hook.
 - `packages/<name>/` — one mix project per package, depending on `:nbpr`. Mainline-BR packages are thin wrappers; vendored packages ship a `buildroot/` external-tree fragment.
 - `scripts/` — cross-package orchestration (publish, lint).
 - `.github/workflows/` — per-package CI plus the prebuild artefact matrix.
+
+## Building a package locally
+
+From the workspace root, with `MIX_TARGET` set:
+
+    MIX_TARGET=rpi4 mix deps.get
+    MIX_TARGET=rpi4 mix nbpr.build NBPR.Jq -o /tmp/jq-built
+
+The harness pulls in `:nerves` and `:nerves_system_<target>` so the Mix
+task's `Nerves.Env.system/0` lookup succeeds. Add new target systems to
+the `deps/0` list in the workspace `mix.exs` as packages need them.
 
 ## Naming conventions
 
