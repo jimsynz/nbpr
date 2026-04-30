@@ -38,9 +38,17 @@ defmodule NBPR.Workspace.MixProject do
       # Nerves itself, so Nerves.Env resolves the active system
       {:nerves, "~> 1.14", runtime: false},
 
-      # Systems to source-build against. Add more as packages need them.
-      {:nerves_system_rpi4, "~> 2.0", runtime: false, targets: :rpi4},
-      {:nerves_system_x86_64, "~> 1.13", runtime: false, targets: :x86_64}
+      # Systems to source-build against. We pull these from GitHub rather
+      # than Hex because the Hex tarballs deliberately exclude Config.in
+      # and patches/ (Hex users consume the prebuilt artefact, not source).
+      # Add more as packages need them.
+      {:nerves_system_rpi4,
+       github: "nerves-project/nerves_system_rpi4", tag: "v2.0.2", runtime: false, targets: :rpi4},
+      {:nerves_system_x86_64,
+       github: "nerves-project/nerves_system_x86_64",
+       tag: "v1.13.0",
+       runtime: false,
+       targets: :x86_64}
     ] ++ package_deps()
   end
 
