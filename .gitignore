@@ -1,0 +1,9 @@
+_build/
+deps/
+*.beam
+*.ez
+erl_crash.dump
+cover/
+.elixir_ls/
+doc/
+.DS_Store
