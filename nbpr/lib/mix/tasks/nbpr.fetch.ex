@@ -41,6 +41,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
   alias NBPR.Artifact
   alias NBPR.Artifact.{Cache, Fetcher}
+  alias NBPR.Buildroot.Builder
 
   @requirements ["app.config"]
 
@@ -140,8 +141,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     }
 
     unless Cache.valid?(inputs) do
-      Mix.shell().info("[nbpr] fetching #{inputs.package_name}-#{package_version}...")
-      tarball = Fetcher.fetch!(inputs, pkg.artifact_sites)
+      tarball = fetch_or_build!(pkg, inputs)
       :ok = Cache.extract!(tarball, inputs)
     end
 
@@ -149,6 +149,30 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
     install_target!(cache_dir, app)
     install_rootfs!(cache_dir)
+  end
+
+  defp fetch_or_build!(pkg, inputs) do
+    Mix.shell().info(
+      "[nbpr] fetching #{inputs.package_name}-#{inputs.package_version}..."
+    )
+
+    try do
+      Fetcher.fetch!(inputs, pkg.artifact_sites)
+    rescue
+      e in RuntimeError ->
+        Mix.shell().info(
+          "[nbpr] no prebuilt artefact found; falling back to source-build"
+        )
+
+        Mix.shell().info("[nbpr] (fetch error: #{first_line(Exception.message(e))})")
+
+        output_dir = Path.join(Mix.Project.build_path(), "nbpr")
+        Builder.build!(pkg, inputs, output_dir)
+    end
+  end
+
+  defp first_line(msg) do
+    msg |> String.split("\n", trim: true) |> List.first() || msg
   end
 
   defp install_target!(cache_dir, app) do
