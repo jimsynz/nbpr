@@ -121,6 +121,7 @@ defmodule NBPR.BrPackage do
     package = build_metadata!(evaluated_opts, __CALLER__.module)
 
     daemon_modules = Enum.map(package.daemons, &daemon_module_ast/1)
+    application_module = application_module_ast(package, __CALLER__.module)
 
     quote do
       @nbpr_package unquote(Macro.escape(package))
@@ -132,6 +133,7 @@ defmodule NBPR.BrPackage do
       def __nbpr_package__, do: @nbpr_package
 
       unquote_splicing(daemon_modules)
+      unquote(application_module)
     end
   end
 
@@ -270,6 +272,45 @@ defmodule NBPR.BrPackage do
           {mod, fun, extras} = @argv_template
           apply(mod, fun, [ordered, @opt_flags | extras])
         end
+      end
+    end
+  end
+
+  defp application_module_ast(%Package{kernel_modules: []}, _caller_module), do: nil
+
+  defp application_module_ast(%Package{kernel_modules: kmods}, caller_module) do
+    app_module = Module.concat([caller_module, "Application"])
+
+    quote do
+      defmodule unquote(app_module) do
+        @moduledoc """
+        Auto-generated Application that loads kernel modules at boot via
+        `modprobe`. No-op when not running on a Nerves target, so `mix test`
+        and dev workflows are unaffected. `stop/1` is a no-op — kernel modules
+        are global resources and never `rmmod`'d.
+        """
+
+        use Application
+
+        @kernel_modules unquote(kmods)
+
+        @impl Application
+        def start(_type, _args) do
+          if NBPR.Runtime.on_nerves_target?() do
+            Enum.each(@kernel_modules, &NBPR.Runtime.modprobe!/1)
+          end
+
+          Supervisor.start_link([], strategy: :one_for_one, name: __MODULE__)
+        end
+
+        @impl Application
+        def stop(_state), do: :ok
+
+        @doc """
+        Returns the list of kernel modules this Application loads at boot.
+        """
+        @spec kernel_modules() :: [String.t()]
+        def kernel_modules, do: @kernel_modules
       end
     end
   end

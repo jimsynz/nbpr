@@ -57,6 +57,14 @@ defmodule NBPR.BrPackageTest do
       ]
   end
 
+  defmodule TestWithKmods do
+    use NBPR.BrPackage,
+      version: 1,
+      br_package: "zfs",
+      description: "test kernel-module-bearing package",
+      kernel_modules: ["spl", "zfs"]
+  end
+
   describe "__nbpr_package__/0 — daemonless" do
     test "returns metadata struct with the expected fields" do
       pkg = TestDaemonless.__nbpr_package__()
@@ -145,6 +153,32 @@ defmodule NBPR.BrPackageTest do
     test "calls the user-supplied function instead of default_argv" do
       assert TestWithCustomArgv.Custom.argv(config_file: "/srv/cfg") ==
                ["serve", "--from", "/srv/cfg"]
+    end
+  end
+
+  describe "kernel-module Application generation" do
+    test "Application module is generated when kernel_modules is non-empty" do
+      assert Code.ensure_loaded?(TestWithKmods.Application)
+      assert function_exported?(TestWithKmods.Application, :start, 2)
+      assert function_exported?(TestWithKmods.Application, :stop, 1)
+      assert function_exported?(TestWithKmods.Application, :kernel_modules, 0)
+    end
+
+    test "Application module is NOT generated when kernel_modules is empty" do
+      refute Code.ensure_loaded?(TestDaemonless.Application)
+    end
+
+    test "kernel_modules/0 returns the declared list" do
+      assert TestWithKmods.Application.kernel_modules() == ["spl", "zfs"]
+    end
+
+    test "start/2 succeeds on dev host (modprobe gated off)" do
+      assert {:ok, pid} = TestWithKmods.Application.start(:normal, [])
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+
+      assert TestWithKmods.Application.stop(nil) == :ok
+      Supervisor.stop(pid)
     end
   end
 
