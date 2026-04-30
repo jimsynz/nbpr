@@ -29,8 +29,28 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
 
   @impl NBPR.Artifact.Resolver
   def get(%{url: url}, dest_path) do
+    start_http_apps!()
+
     with :ok <- File.mkdir_p(Path.dirname(dest_path)) do
       download(url, dest_path)
+    end
+  end
+
+  defp start_http_apps! do
+    # `:inets.start/0` starts the inets application *and* sets up the default
+    # httpc profile. `Application.ensure_all_started(:inets)` is not enough
+    # — it brings up the application but not the profile, so :httpc.request
+    # crashes looking for `:http_util` on some OTP versions.
+    case :inets.start() do
+      :ok -> :ok
+      {:error, {:already_started, :inets}} -> :ok
+      {:error, reason} -> raise "failed to start :inets: #{inspect(reason)}"
+    end
+
+    case :ssl.start() do
+      :ok -> :ok
+      {:error, {:already_started, :ssl}} -> :ok
+      {:error, reason} -> raise "failed to start :ssl: #{inspect(reason)}"
     end
   end
 
