@@ -14,7 +14,10 @@ defmodule NBPR.Artifact.Fetcher do
   alias NBPR.Artifact
   alias NBPR.Package
 
-  @default_resolvers [NBPR.Artifact.Resolvers.GitHubReleases]
+  @default_resolvers [
+    NBPR.Artifact.Resolvers.GHCR,
+    NBPR.Artifact.Resolvers.GitHubReleases
+  ]
 
   @doc """
   Downloads the artefact tarball to its canonical download path. Returns the

@@ -127,6 +127,7 @@ defmodule NBPR.Inspector do
     "Artifact sites:\n" <>
       Enum.map_join(sites, "\n", fn
         {:github_releases, owner_repo} -> "  github_releases: #{owner_repo}"
+        {:ghcr, prefix} -> "  ghcr:            #{prefix}"
       end)
   end
 end

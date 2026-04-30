@@ -14,6 +14,7 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
   @behaviour NBPR.Artifact.Resolver
 
   alias NBPR.Artifact
+  alias NBPR.Artifact.HTTP
 
   @impl NBPR.Artifact.Resolver
   def plan({:github_releases, owner_repo}, %{} = inputs) when is_binary(owner_repo) do
@@ -29,28 +30,10 @@ defmodule NBPR.Artifact.Resolvers.GitHubReleases do
 
   @impl NBPR.Artifact.Resolver
   def get(%{url: url}, dest_path) do
-    start_http_apps!()
+    HTTP.start_apps!()
 
     with :ok <- File.mkdir_p(Path.dirname(dest_path)) do
       download(url, dest_path)
-    end
-  end
-
-  defp start_http_apps! do
-    # `app.config` loads dep apps but doesn't start them. `:inets.start/0`
-    # both starts the inets application and initialises the default httpc
-    # profile — `Application.ensure_all_started(:inets)` is not enough on
-    # OTP 28+, where the profile setup is required for `:httpc.request/4`.
-    case :inets.start() do
-      :ok -> :ok
-      {:error, {:already_started, :inets}} -> :ok
-      {:error, reason} -> raise "failed to start :inets: #{inspect(reason)}"
-    end
-
-    case :ssl.start() do
-      :ok -> :ok
-      {:error, {:already_started, :ssl}} -> :ok
-      {:error, reason} -> raise "failed to start :ssl: #{inspect(reason)}"
     end
   end
 

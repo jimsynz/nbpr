@@ -10,7 +10,7 @@ defmodule NBPR.JqTest do
     assert pkg.br_package == "jq"
     assert pkg.description == "Lightweight JSON processor"
     assert pkg.homepage == "https://jqlang.github.io/jq/"
-    assert pkg.artifact_sites == [{:github_releases, "jimsynz/nbpr"}]
+    assert pkg.artifact_sites == [{:ghcr, "ghcr.io/jimsynz"}]
     assert pkg.daemons == []
     assert pkg.kernel_modules == []
   end

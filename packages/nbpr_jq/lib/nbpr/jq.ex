@@ -16,5 +16,5 @@ defmodule NBPR.Jq do
     br_package: "jq",
     description: "Lightweight JSON processor",
     homepage: "https://jqlang.github.io/jq/",
-    artifact_sites: [{:github_releases, "jimsynz/nbpr"}]
+    artifact_sites: [{:ghcr, "ghcr.io/jimsynz"}]
 end

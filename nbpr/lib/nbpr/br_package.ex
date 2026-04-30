@@ -97,10 +97,10 @@ defmodule NBPR.BrPackage do
                          "Out-of-tree kernel modules. Triggers generation of an Application that runs `modprobe` at boot on Nerves targets."
                      ],
                      artifact_sites: [
-                       type: {:list, {:tuple, [{:in, [:github_releases]}, :string]}},
+                       type: {:list, {:tuple, [{:in, [:github_releases, :ghcr]}, :string]}},
                        default: [],
                        doc:
-                         "Where to fetch prebuilt artefact tarballs. Currently supports `{:github_releases, \"owner/repo\"}`. Sites are tried in order; first one to resolve and download wins."
+                         "Where to fetch prebuilt artefact tarballs. Supports `{:ghcr, \"ghcr.io/<owner>\"}` and `{:github_releases, \"<owner>/<repo>\"}`. Sites are tried in order; first one to resolve and download wins."
                      ]
                    )
 
