@@ -95,6 +95,12 @@ defmodule NBPR.BrPackage do
                        default: [],
                        doc:
                          "Out-of-tree kernel modules. Triggers generation of an Application that runs `modprobe` at boot on Nerves targets."
+                     ],
+                     artifact_sites: [
+                       type: {:list, {:tuple, [{:in, [:github_releases]}, :string]}},
+                       default: [],
+                       doc:
+                         "Where to fetch prebuilt artefact tarballs. Currently supports `{:github_releases, \"owner/repo\"}`. Sites are tried in order; first one to resolve and download wins."
                      ]
                    )
 
@@ -159,7 +165,8 @@ defmodule NBPR.BrPackage do
       build_opts: build_opts_clean,
       build_opt_extensions: build_opt_extensions,
       daemons: daemons,
-      kernel_modules: validated[:kernel_modules]
+      kernel_modules: validated[:kernel_modules],
+      artifact_sites: validated[:artifact_sites]
     }
   end
 

@@ -39,6 +39,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert contents =~ "defmodule NBPR.Containerd do"
       assert contents =~ "use NBPR.BrPackage"
       assert contents =~ ~s|br_package: "containerd"|
+      assert contents =~ "artifact_sites: []"
     end
 
     test "mix.exs declares the right app and depends on :nbpr", %{tmp: tmp} do

@@ -81,5 +81,26 @@ defmodule NBPR.InspectorTest do
       assert output =~ "Kernel modules:"
       assert output =~ "  nf_conntrack"
     end
+
+    test "renders 'source-build only' when artifact_sites is empty" do
+      output = Daemonless.__nbpr_package__() |> NBPR.Inspector.format()
+      assert output =~ "Artifact sites: (none — source-build only)"
+    end
+  end
+
+  describe "format/1 — artifact_sites" do
+    defmodule WithSites do
+      use NBPR.BrPackage,
+        version: 1,
+        br_package: "jq",
+        description: "test",
+        artifact_sites: [{:github_releases, "jimsynz/nbpr"}]
+    end
+
+    test "renders github_releases sites" do
+      output = WithSites.__nbpr_package__() |> NBPR.Inspector.format()
+      assert output =~ "Artifact sites:"
+      assert output =~ "github_releases: jimsynz/nbpr"
+    end
   end
 end

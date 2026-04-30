@@ -9,6 +9,8 @@ defmodule NBPR.Package do
 
   alias NBPR.Package.Daemon
 
+  @type artifact_site :: {:github_releases, String.t()}
+
   @type t :: %__MODULE__{
           name: atom(),
           version: pos_integer(),
@@ -20,7 +22,8 @@ defmodule NBPR.Package do
           build_opts: keyword(),
           build_opt_extensions: %{atom() => map()},
           daemons: [Daemon.t()],
-          kernel_modules: [String.t()]
+          kernel_modules: [String.t()],
+          artifact_sites: [artifact_site()]
         }
 
   defstruct [
@@ -34,6 +37,7 @@ defmodule NBPR.Package do
     :build_opts,
     :build_opt_extensions,
     :daemons,
-    :kernel_modules
+    :kernel_modules,
+    :artifact_sites
   ]
 end

@@ -65,6 +65,17 @@ defmodule NBPR.BrPackageTest do
       kernel_modules: ["spl", "zfs"]
   end
 
+  defmodule TestWithSites do
+    use NBPR.BrPackage,
+      version: 1,
+      br_package: "jq",
+      description: "test artifact_sites",
+      artifact_sites: [
+        {:github_releases, "jimsynz/nbpr"},
+        {:github_releases, "nerves-project/nbpr"}
+      ]
+  end
+
   describe "__nbpr_package__/0 — daemonless" do
     test "returns metadata struct with the expected fields" do
       pkg = TestDaemonless.__nbpr_package__()
@@ -79,6 +90,7 @@ defmodule NBPR.BrPackageTest do
       assert pkg.br_external_path == nil
       assert pkg.daemons == []
       assert pkg.kernel_modules == []
+      assert pkg.artifact_sites == []
     end
 
     test "splits :br_flag out of build_opts into build_opt_extensions" do
@@ -153,6 +165,22 @@ defmodule NBPR.BrPackageTest do
     test "calls the user-supplied function instead of default_argv" do
       assert TestWithCustomArgv.Custom.argv(config_file: "/srv/cfg") ==
                ["serve", "--from", "/srv/cfg"]
+    end
+  end
+
+  describe "artifact_sites" do
+    test "is captured in metadata in declaration order" do
+      pkg = TestWithSites.__nbpr_package__()
+
+      assert pkg.artifact_sites == [
+               {:github_releases, "jimsynz/nbpr"},
+               {:github_releases, "nerves-project/nbpr"}
+             ]
+    end
+
+    test "defaults to an empty list when omitted" do
+      pkg = TestDaemonless.__nbpr_package__()
+      assert pkg.artifact_sites == []
     end
   end
 

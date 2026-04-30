@@ -186,7 +186,8 @@ defmodule Mix.Tasks.Nbpr.New do
       use NBPR.BrPackage,
         version: 1,
         br_package: "#{short}",
-        description: "Replace this with a short description of #{short}"
+        description: "Replace this with a short description of #{short}",
+        artifact_sites: []
     end
     """
   end

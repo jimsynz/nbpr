@@ -18,7 +18,9 @@ defmodule NBPR.Inspector do
       "",
       format_daemons(pkg),
       "",
-      format_kernel_modules(pkg)
+      format_kernel_modules(pkg),
+      "",
+      format_artifact_sites(pkg)
     ]
     |> Enum.join("\n")
   end
@@ -116,5 +118,15 @@ defmodule NBPR.Inspector do
 
   defp format_kernel_modules(%{kernel_modules: kmods}) do
     "Kernel modules:\n" <> Enum.map_join(kmods, "\n", &"  #{&1}")
+  end
+
+  defp format_artifact_sites(%{artifact_sites: []}),
+    do: "Artifact sites: (none — source-build only)"
+
+  defp format_artifact_sites(%{artifact_sites: sites}) do
+    "Artifact sites:\n" <>
+      Enum.map_join(sites, "\n", fn
+        {:github_releases, owner_repo} -> "  github_releases: #{owner_repo}"
+      end)
   end
 end
