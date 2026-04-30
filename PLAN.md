@@ -102,12 +102,39 @@ Validates the resolve path before the build path. Cheaper to debug.
 
 ### Phase 4 — source-build runner
 
+**Architecture (post-investigation):**
+
+Leverage the user's `deps/nerves_system_br/` rather than inventing our own
+BR-tree management. After `mix deps.get`, the user's project tree contains:
+
+- `create-build.sh` with `NERVES_BR_VERSION=<x.y.z>` — the canonical version pin
+- `scripts/download-buildroot.sh` — upstream BR fetcher with Nerves mirror fallback
+- `patches/buildroot/` — Nerves-specific patches we **must** apply (otherwise nbpr packages build against incompatible upstream BR)
+- `external.desc`, `external.mk`, `Config.in`, `package/` — Nerves' BR external tree
+
+So the source-build flow becomes:
+
+1. `NBPR.Buildroot.nerves_system_br_path/0` → `deps/nerves_system_br/`
+2. `NBPR.Buildroot.br_version/1` → e.g. `"2025.11.3"`
+3. Cache-or-download BR source to `$NERVES_DATA_DIR/nbpr/buildroot/<version>/`
+4. Apply `patches/buildroot/*.patch` once when first downloaded
+5. Per-build: `make O=<tmp> BR2_DL_DIR=<shared> BR2_EXTERNAL_NBPR=<pkg-tree> ... <pkg>-rebuild`
+6. Harvest from `O=<tmp>/per-package/<pkg>/target/` (and `staging/`, `legal-info/`)
+7. Hand off to `NBPR.Pack`
+
 **Deliverables:**
-- `Mix.Tasks.Nbpr.Build` builds a single nbpr package against the active system's BR tree.
-- Invokes Buildroot via Docker (reuse `nerves_system_br`'s build container approach).
+- ~~`Mix.Tasks.Nbpr.Build`~~ Built incrementally — see Phase 4.x sub-phases.
 - Sets `BR2_EXTERNAL_NBPR_*` to the package's BR external tree (or none if mainline-BR).
 - Applies the package's `build_opts` as `BR2_PACKAGE_*` settings.
 - `make <pkg>-rebuild`, harvest from per-package output dir, hand off to `NBPR.Pack`.
+
+**Sub-phases:**
+- 4.1 ✅ Discovery (`NBPR.Buildroot`) — paths, BR version, patches list.
+- 4.2 BR source caching — download tarball, apply patches, store at `$NERVES_DATA_DIR/nbpr/buildroot/<version>/`.
+- 4.3 Build invocation on Linux — generate defconfig + run `make ... pkg-rebuild`.
+- 4.4 Output harvesting + hand-off to `NBPR.Pack`.
+- 4.5 Docker wrapper for non-Linux hosts.
+- 4.6 `Mix.Tasks.Nbpr.Build` — top-level user-facing task.
 
 **Caching constraints (binding):**
 
