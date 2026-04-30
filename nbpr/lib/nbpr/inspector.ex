@@ -27,12 +27,12 @@ defmodule NBPR.Inspector do
 
   defp format_header(%Package{} = pkg) do
     [
-      "Package:     :nbpr_#{pkg.name}",
-      "Module:      #{inspect(pkg.module)}",
-      "Version:     #{pkg.version}",
-      "BR source:   #{br_source(pkg)}",
-      "Description: #{pkg.description}",
-      "Homepage:    #{pkg.homepage || "(none)"}"
+      "Package:        :nbpr_#{pkg.name}",
+      "Module:         #{inspect(pkg.module)}",
+      "Schema version: #{pkg.version}",
+      "BR source:      #{br_source(pkg)}",
+      "Description:    #{pkg.description}",
+      "Homepage:       #{pkg.homepage || "(none)"}"
     ]
     |> Enum.join("\n")
   end

@@ -38,12 +38,12 @@ defmodule NBPR.InspectorTest do
     test "renders header for daemonless package" do
       output = Daemonless.__nbpr_package__() |> NBPR.Inspector.format()
 
-      assert output =~ "Package:     :nbpr_daemonless"
-      assert output =~ "Module:      NBPR.InspectorTest.Daemonless"
-      assert output =~ "Version:     1"
-      assert output =~ "BR source:   jq (mainline Buildroot)"
-      assert output =~ "Description: Lightweight JSON processor"
-      assert output =~ "Homepage:    https://jqlang.github.io/jq/"
+      assert output =~ "Package:        :nbpr_daemonless"
+      assert output =~ "Module:         NBPR.InspectorTest.Daemonless"
+      assert output =~ "Schema version: 1"
+      assert output =~ "BR source:      jq (mainline Buildroot)"
+      assert output =~ "Description:    Lightweight JSON processor"
+      assert output =~ "Homepage:       https://jqlang.github.io/jq/"
     end
 
     test "renders build opts with type, default, BR flag, and doc" do

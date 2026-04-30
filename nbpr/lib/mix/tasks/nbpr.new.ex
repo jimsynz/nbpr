@@ -117,18 +117,20 @@ defmodule Mix.Tasks.Nbpr.New do
   end
 
   defp print_next_steps(target_dir, module) do
+    short = target_dir |> Path.basename() |> String.replace_prefix("nbpr_", "")
+    relative = Path.relative_to_cwd(target_dir)
+
     Mix.shell().info("""
 
-    Scaffolded #{target_dir}.
+    Scaffolded #{relative}.
 
     Next steps:
 
-        cd #{target_dir}
+        cd #{relative}
         mix deps.get
         mix test
 
-    Then edit lib/#{Path.relative_to(target_dir <> "/lib", target_dir)}/... to
-    flesh out the #{module} package metadata.
+    Then edit lib/nbpr/#{short}.ex to flesh out the #{module} package metadata.
     """)
   end
 
