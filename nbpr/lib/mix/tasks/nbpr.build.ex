@@ -78,15 +78,21 @@ defmodule Mix.Tasks.Nbpr.Build do
 
     br_source = ensure_br_source!()
     system_source_path = system_source_path!(system_app)
+
+    {:ok, nerves_system_br_path} = Buildroot.nerves_system_br_path()
+
     defconfig_text = render_defconfig!(pkg, system_source_path, build_opts)
 
     extra_env = [
-      # Nerves' BR patches reference paths via this var so the system's
-      # `nerves_defconfig` keeps working when the BR tree lives elsewhere.
+      # Nerves' BR patches add support for `${NERVES_DEFCONFIG_DIR}` so paths
+      # in the target system's `nerves_defconfig` (notably `BR2_GLOBAL_PATCH_DIR`)
+      # resolve to the target-system source dir.
       {"NERVES_DEFCONFIG_DIR", system_source_path},
-      # Make the Nerves system's BR external tree (erlinit, nerves-config,
-      # boardid, …) visible to BR's package resolver.
-      {"BR2_EXTERNAL", system_source_path}
+      # `BR2_EXTERNAL` points at Nerves' BR external tree (`nerves_system_br`,
+      # which contains erlinit/nerves-config/boardid/etc.). The per-target
+      # system (e.g. `nerves_system_rpi4`) is NOT a BR external tree — it just
+      # carries the defconfig + patches.
+      {"BR2_EXTERNAL", nerves_system_br_path}
     ]
 
     output_dir_br = Build.build!(br_source, defconfig_text, pkg.br_package, extra_env)
