@@ -17,9 +17,14 @@ defmodule NBPR.Buildroot.Build do
   compiles. `make olddefconfig` reconciles defconfig drift across
   builds (e.g. enabling a different `BR2_PACKAGE_*=y`).
 
-  Currently Linux-only. macOS and other hosts will be supported via a
-  Docker wrapper in a later phase.
+  When invoked outside the Nerves canonical build env (`mix nerves.system.shell`),
+  delegates `make` invocations to `NBPR.Buildroot.Docker`, which runs them
+  inside `ghcr.io/nerves-project/nerves_system_br:latest`. Detection is
+  via `NBPR.Buildroot.Docker.in_canonical_env?/0` — the native path is
+  taken inside the canonical container and the Docker path everywhere else.
   """
+
+  alias NBPR.Buildroot.Docker
 
   alias NBPR.Buildroot.Source
 
@@ -38,20 +43,25 @@ defmodule NBPR.Buildroot.Build do
   skeleton, and other unchanging packages. To force from-scratch,
   `File.rm_rf!(output_dir)` before calling.
   """
-  @spec build!(Path.t(), Path.t(), String.t(), String.t(), [{String.t(), String.t()}]) ::
+  @spec build!(Path.t(), Path.t(), String.t(), String.t(), [{String.t(), String.t()}], keyword()) ::
           Path.t()
-  def build!(br_source, output_dir, defconfig_text, br_package, extra_env \\ [])
+  def build!(br_source, output_dir, defconfig_text, br_package, extra_env \\ [], opts \\ [])
       when is_binary(br_source) and is_binary(output_dir) and is_binary(defconfig_text) and
              is_binary(br_package) and is_list(extra_env) do
-    ensure_linux!()
-
     File.mkdir_p!(output_dir)
     File.write!(Path.join(output_dir, ".config"), defconfig_text)
 
     env = build_env() ++ extra_env
+    extra_mounts = Keyword.get(opts, :extra_mounts, [])
 
-    run_make!(br_source, output_dir, env, ["olddefconfig"])
-    run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"])
+    if Docker.in_canonical_env?() do
+      ensure_linux!()
+      run_make!(br_source, output_dir, env, ["olddefconfig"])
+      run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"])
+    else
+      Docker.run_make!(br_source, output_dir, env, ["olddefconfig"], extra_mounts)
+      Docker.run_make!(br_source, output_dir, env, ["#{br_package}-rebuild"], extra_mounts)
+    end
 
     output_dir
   end

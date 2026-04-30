@@ -98,7 +98,14 @@ defmodule Mix.Tasks.Nbpr.Build do
       {"BR2_EXTERNAL", nerves_system_br_path}
     ]
 
-    Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env)
+    # Bind-mount the workspace deps so `NERVES_DEFCONFIG_DIR` and
+    # `BR2_EXTERNAL` paths inside the container resolve to the same source
+    # trees they do on the host.
+    deps_path = Mix.Project.deps_path()
+
+    Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env,
+      extra_mounts: [deps_path]
+    )
 
     sources = Harvest.harvest!(output_dir_br, pkg.br_package)
     tarball = Pack.pack!(inputs, sources, output_dir)

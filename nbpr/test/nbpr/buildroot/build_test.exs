@@ -19,20 +19,4 @@ defmodule NBPR.Buildroot.BuildTest do
       assert String.contains?(path, "buildroot-dl")
     end
   end
-
-  describe "build!/3" do
-    @tag :linux_only
-    test "raises on non-Linux hosts with a clear message" do
-      case :os.type() do
-        {:unix, :linux} ->
-          # Skip — this test only meaningful on non-Linux
-          :ok
-
-        _ ->
-          assert_raise RuntimeError, ~r/requires a Linux host/, fn ->
-            Build.build!("/nonexistent", "/tmp/out", "BR2_arm=y\n", "jq")
-          end
-      end
-    end
-  end
 end
