@@ -7,3 +7,4 @@ cover/
 .elixir_ls/
 doc/
 .DS_Store
+.env*
