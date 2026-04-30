@@ -1,7 +1,7 @@
 # NBPR Spike Plan
 
-**Status:** Phase 1 + Phase 2 complete; upstream nerves PR open ([#1164](https://github.com/nerves-project/nerves/pull/1164)). Phase 4 (source-build runner) is the next major piece.
-**Last updated:** 2026-04-30
+**Status:** Phases 1, 2, 4.1–4.4, 4.6 complete. Priv-mode pivot landed (artefacts install into each package's `priv/`; Nerves-side `:extra_rootfs_overlays` PR closed as no longer needed). Phase 4.5 (Docker wrapper for non-Linux hosts) is the last remaining piece for `mix nbpr.build` to work everywhere.
+**Last updated:** 2026-05-01
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. A user's app declares `{:nbpr_jq, "~> 1.0", repo: "nbpr"}` and gets the binary in their rootfs at firmware build time, with optional MuonTrap supervision wrappers for daemon-bearing packages.
 
@@ -130,11 +130,13 @@ So the source-build flow becomes:
 
 **Sub-phases:**
 - 4.1 ✅ Discovery (`NBPR.Buildroot`) — paths, BR version, patches list.
-- 4.2 BR source caching — download tarball, apply patches, store at `$NERVES_DATA_DIR/nbpr/buildroot/<version>/`.
-- 4.3 Build invocation on Linux — generate defconfig + run `make ... pkg-rebuild`.
-- 4.4 Output harvesting + hand-off to `NBPR.Pack`.
-- 4.5 Docker wrapper for non-Linux hosts.
-- 4.6 `Mix.Tasks.Nbpr.Build` — top-level user-facing task.
+- 4.2 ✅ BR source caching (`NBPR.Buildroot.Source`) — download tarball, apply patches, store at `$NERVES_DATA_DIR/nbpr/buildroot/<version>/`.
+- 4.3 ✅ Build invocation on Linux:
+  - Part 1: Defconfig rendering (`NBPR.Buildroot.Defconfig`).
+  - Part 2: `make` runner (`NBPR.Buildroot.Build`) — `make olddefconfig` + `make <pkg>-rebuild` with live output streaming.
+- 4.4 ✅ Output harvesting (`NBPR.Buildroot.Harvest`) — locates per-package `target/` and `staging/`, returns `Pack.sources()` map.
+- 4.5 ⏸ Docker wrapper for non-Linux hosts.
+- 4.6 ✅ `Mix.Tasks.Nbpr.Build` — top-level user-facing task that wires all the pieces together. Currently Linux-only; needs 4.5 for macOS.
 
 **Caching constraints (binding):**
 
