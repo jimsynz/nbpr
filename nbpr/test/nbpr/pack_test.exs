@@ -67,7 +67,7 @@ defmodule NBPR.PackTest do
         assert File.regular?(Path.join(cache_dir, "manifest.json"))
         assert File.read!(Path.join(cache_dir, "target/usr/bin/jq")) == "stub"
 
-        manifest = Jason.decode!(File.read!(Path.join(cache_dir, "manifest.json")))
+        manifest = :json.decode(File.read!(Path.join(cache_dir, "manifest.json")))
         assert manifest["package_name"] == "nbpr_jq"
         assert manifest["cache_key"] == NBPR.Artifact.cache_key(@inputs)
       after

@@ -22,8 +22,7 @@ defmodule NBPR.MixProject do
   defp deps do
     [
       {:nimble_options, "~> 1.1"},
-      {:muontrap, "~> 1.0"},
-      {:jason, "~> 1.4"}
+      {:muontrap, "~> 1.0"}
     ]
   end
 

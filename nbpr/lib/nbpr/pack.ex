@@ -49,7 +49,7 @@ defmodule NBPR.Pack do
 
     File.write!(
       Path.join(inner, "manifest.json"),
-      Jason.encode!(Artifact.manifest(inputs), pretty: true) <> "\n"
+      [:json.encode(Artifact.manifest(inputs)), ?\n]
     )
 
     Enum.each([:target, :staging, :legal_info], fn key ->

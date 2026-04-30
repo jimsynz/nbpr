@@ -60,10 +60,10 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
 
     case :httpc.request(:get, {url, []}, [autoredirect: true], []) do
       {:ok, {{_, 200, _}, _, body}} ->
-        case Jason.decode(to_string(body)) do
+        case decode_json(body) do
           {:ok, %{"token" => token}} -> {:ok, token}
           {:ok, _other} -> {:error, :token_missing}
-          {:error, _} -> {:error, :token_parse_failed}
+          {:error, _} = err -> err
         end
 
       {:ok, {{_, status, _}, _, _}} ->
@@ -84,7 +84,7 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
 
     case :httpc.request(:get, {url, headers}, [autoredirect: true], []) do
       {:ok, {{_, 200, _}, _, body}} ->
-        Jason.decode(to_string(body))
+        decode_json(body)
 
       {:ok, {{_, status, _}, _, _}} ->
         {:error, {:manifest_http, status}}
@@ -92,6 +92,12 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
       {:error, reason} ->
         {:error, {:manifest_fetch, reason}}
     end
+  end
+
+  defp decode_json(body) do
+    {:ok, :json.decode(IO.iodata_to_binary(body))}
+  rescue
+    e -> {:error, {:json_decode, e}}
   end
 
   defp find_layer_digest(%{"layers" => layers}) when is_list(layers) do
