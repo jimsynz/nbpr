@@ -23,7 +23,7 @@ defmodule NBPR.Dnsmasq do
     br_package: "dnsmasq",
     description: "Lightweight DHCP/DNS server",
     homepage: "https://thekelleys.org.uk/dnsmasq/doc.html",
-    artifact_sites: [{:ghcr, "ghcr.io/jimsynz"}],
+    artifact_sites: [{:ghcr, "ghcr.io/jimsynz/nbpr"}],
     daemons: [
       dnsmasq: [
         path: "/usr/sbin/dnsmasq",

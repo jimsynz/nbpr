@@ -19,6 +19,11 @@ defmodule NBPR.Artifact.Resolvers.GHCRTest do
       assert plan.tag == "1.7.1-nerves_system_rpi4-2.0.1-#{Artifact.cache_key(@inputs)}"
     end
 
+    test "preserves multi-segment owner paths so packages attach to a repo" do
+      assert {GHCR, plan} = GHCR.plan({:ghcr, "ghcr.io/jimsynz/nbpr"}, @inputs)
+      assert plan.image == "jimsynz/nbpr/nbpr_jq"
+    end
+
     test "ignores other site types" do
       refute GHCR.plan({:github_releases, "jimsynz/nbpr"}, @inputs)
       refute GHCR.plan({:other, "x"}, @inputs)

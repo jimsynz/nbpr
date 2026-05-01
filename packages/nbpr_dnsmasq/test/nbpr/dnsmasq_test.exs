@@ -8,7 +8,7 @@ defmodule NBPR.DnsmasqTest do
       assert pkg.module == NBPR.Dnsmasq
       assert pkg.name == :dnsmasq
       assert pkg.br_package == "dnsmasq"
-      assert pkg.artifact_sites == [{:ghcr, "ghcr.io/jimsynz"}]
+      assert pkg.artifact_sites == [{:ghcr, "ghcr.io/jimsynz/nbpr"}]
 
       [daemon] = pkg.daemons
       assert daemon.name == :dnsmasq
