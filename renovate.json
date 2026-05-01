@@ -41,7 +41,9 @@
     {
       "customType": "regex",
       "description": "Workspace @prebuild_systems map → upstream nerves_system_* GitHub releases.",
-      "fileMatch": ["^mix\\.exs$"],
+      "managerFilePatterns": [
+        "/^mix\\.exs$/"
+      ],
       "matchStrings": [
         "\\{\"(?<depName>nerves-project/nerves_system_[A-Za-z0-9_]+)\",\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\"\\}"
       ],
@@ -52,7 +54,9 @@
     {
       "customType": "regex",
       "description": "nbpr_jq @version → Buildroot's `JQ_VERSION` line at the pinned BR_REF.",
-      "fileMatch": ["^packages/nbpr_jq/mix\\.exs$"],
+      "managerFilePatterns": [
+        "/^packages/nbpr_jq/mix\\.exs$/"
+      ],
       "matchStrings": [
         "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
       ],
@@ -64,7 +68,9 @@
     {
       "customType": "regex",
       "description": "nbpr_dnsmasq @version → Buildroot's `DNSMASQ_VERSION` line. Buildroot ships e.g. `2.91`; the package's @version pads to `2.91.0` for Hex's required semver shape, so the bump PR will need a manual edit to re-pad. semver-coerced versioning makes the comparison work.",
-      "fileMatch": ["^packages/nbpr_dnsmasq/mix\\.exs$"],
+      "managerFilePatterns": [
+        "/^packages/nbpr_dnsmasq/mix\\.exs$/"
+      ],
       "matchStrings": [
         "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
       ],
@@ -76,7 +82,9 @@
     {
       "customType": "regex",
       "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
-      "fileMatch": ["^renovate\\.json$"],
+      "managerFilePatterns": [
+        "/^renovate\\.json$/"
+      ],
       "matchStrings": [
         "/contents/package/\\{\\{packageName\\}\\}/\\{\\{packageName\\}\\}\\.mk\\?ref=(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})"
       ],
