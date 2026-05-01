@@ -21,11 +21,19 @@
   ],
   "customDatasources": {
     "buildroot-package": {
-      "description": "Reads `package/<pkg>/<pkg>.mk` from buildroot/buildroot at the BR_REF pinned below, base64-decodes the file, and extracts the first `<PKG>_VERSION = <semver>` line. BR_REF must match the `NERVES_BR_VERSION` in the active nerves_system_br release; update both in the same PR when nerves_system_br bumps.",
+      "description": "Reads `package/<pkg>/<pkg>.mk` from buildroot/buildroot at the BR_REF pinned in the URL below, base64-decodes the file, and extracts the first `<PKG>_VERSION = <semver>` line. BR_REF is itself tracked by the `nerves-system-br-buildroot-version` datasource — Renovate updates this URL automatically when nerves_system_br/main bumps its NERVES_BR_VERSION pin.",
       "defaultRegistryUrlTemplate": "https://api.github.com/repos/buildroot/buildroot/contents/package/{{packageName}}/{{packageName}}.mk?ref=2025.11.3",
       "format": "json",
       "transformTemplates": [
         "{ \"releases\": [ { \"version\": $match($base64decode(content), /^[A-Z][A-Z0-9_]*_VERSION\\s*=\\s*([\\d.]+)/m).groups[0] } ] }"
+      ]
+    },
+    "nerves-system-br-buildroot-version": {
+      "description": "Reads nerves_system_br/main's create-build.sh and extracts NERVES_BR_VERSION. Used to keep the BR_REF in this very renovate.json in lockstep with nerves_system_br's pinned Buildroot version. Tracks `main` rather than the latest tag, so it leads pinned releases by some skew — review the resulting PR alongside the nerves_system_* group.",
+      "defaultRegistryUrlTemplate": "https://api.github.com/repos/nerves-project/nerves_system_br/contents/create-build.sh?ref=main",
+      "format": "json",
+      "transformTemplates": [
+        "{ \"releases\": [ { \"version\": $match($base64decode(content), /^NERVES_BR_VERSION=([\\d.]+)/m).groups[0] } ] }"
       ]
     }
   },
@@ -64,6 +72,18 @@
       "packageNameTemplate": "dnsmasq",
       "datasourceTemplate": "custom.buildroot-package",
       "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
+      "fileMatch": ["^renovate\\.json$"],
+      "matchStrings": [
+        "/contents/package/\\{\\{packageName\\}\\}/\\{\\{packageName\\}\\}\\.mk\\?ref=(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})"
+      ],
+      "depNameTemplate": "buildroot/buildroot",
+      "packageNameTemplate": "nerves_system_br",
+      "datasourceTemplate": "custom.nerves-system-br-buildroot-version",
+      "versioningTemplate": "loose"
     }
   ]
 }
