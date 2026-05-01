@@ -63,6 +63,14 @@ defmodule NBPR.Buildroot.Build do
       run_make!(br_source, output_dir, env, ["#{br_package}-dirclean"])
       run_make!(br_source, output_dir, env, [br_package])
 
+      # Best-effort: packages without `FOO_LICENSE_FILES` declared get no output.
+      _ =
+        try do
+          run_make!(br_source, output_dir, env, ["#{br_package}-legal-info"])
+        rescue
+          _ -> :ok
+        end
+
       extract_dir = output_dir <> ".extract"
       File.rm_rf!(extract_dir)
       build_dir = locate_build_dir!(output_dir, br_package)
@@ -80,6 +88,8 @@ defmodule NBPR.Buildroot.Build do
         Path.join(pp_dst, "staging"),
         Path.join(build_dir, ".files-list-staging.txt")
       )
+
+      collect_legal_info!(output_dir, br_package, pp_dst)
 
       extract_dir
     else
@@ -123,6 +133,30 @@ defmodule NBPR.Buildroot.Build do
   @spec build_env() :: [{String.t(), String.t()}]
   def build_env do
     [{"BR2_DL_DIR", Source.download_dir()}]
+  end
+
+  defp collect_legal_info!(output_dir, br_package, pp_dst) do
+    pattern = Path.join([output_dir, "legal-info", "licenses", "#{br_package}-*"])
+
+    with [licenses_dir | _] <- Path.wildcard(pattern) |> Enum.filter(&File.dir?/1),
+         license_files = list_files(licenses_dir),
+         [_ | _] <- license_files do
+      legal_info_dir = Path.join(pp_dst, "legal-info")
+      File.mkdir_p!(legal_info_dir)
+      out_path = Path.join(legal_info_dir, "#{br_package}.txt")
+      contents = license_files |> Enum.map(&File.read!/1) |> Enum.join("\n\n\n")
+      File.write!(out_path, contents)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp list_files(dir) do
+    dir
+    |> Path.join("**")
+    |> Path.wildcard()
+    |> Enum.filter(&File.regular?/1)
+    |> Enum.sort()
   end
 
   defp locate_build_dir!(output_dir, br_package) do

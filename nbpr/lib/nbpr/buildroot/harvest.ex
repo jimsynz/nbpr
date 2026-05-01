@@ -42,6 +42,7 @@ defmodule NBPR.Buildroot.Harvest do
       %{}
       |> maybe_add(:target, Path.join(pp_dir, "target"))
       |> maybe_add(:staging, Path.join(pp_dir, "staging"))
+      |> maybe_add(:legal_info, Path.join(pp_dir, "legal-info"))
 
     if map_size(sources) == 0 do
       raise "per-package output for #{br_package} contains neither target/ nor staging/"

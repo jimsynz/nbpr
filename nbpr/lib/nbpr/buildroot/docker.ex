@@ -159,6 +159,10 @@ defmodule NBPR.Buildroot.Docker do
     make O=#{shell_quote(build_path)} #{shell_quote("#{br_package}-dirclean")}
     make O=#{shell_quote(build_path)} #{shell_quote(br_package)}
 
+    # Collect upstream licence files (best-effort — packages without
+    # `FOO_LICENSE_FILES` declared get no output here).
+    make O=#{shell_quote(build_path)} #{shell_quote("#{br_package}-legal-info")} || true
+
     # Use BR's files-list to copy only THIS package's contribution out of the
     # merged per-package sysroot — without this, we'd ship the BR target
     # skeleton (libc, libstdc++, /etc/passwd, ...) plus every transitive
@@ -210,6 +214,22 @@ defmodule NBPR.Buildroot.Docker do
     # Drop empty staging dir so Harvest's existence check skips it cleanly.
     if [ -z "$(ls -A "#{pp_dst}/staging" 2>/dev/null)" ]; then
       rmdir "#{pp_dst}/staging"
+    fi
+
+    # Concatenate upstream licence files into a single `legal-info/<pkg>.txt`,
+    # matching the canonical artefact layout. Empty / missing licences-dir is
+    # not fatal (some packages don't declare `FOO_LICENSE_FILES`).
+    LICENSE_DIR=$(ls -d #{shell_quote(build_path)}/legal-info/licenses/#{br_package}-*/ 2>/dev/null | head -1)
+    LICENSE_DIR="${LICENSE_DIR%/}"
+    if [ -n "$LICENSE_DIR" ] && [ -d "$LICENSE_DIR" ]; then
+      mkdir -p #{shell_quote(pp_dst)}/legal-info
+      LICENSE_FILES=$(find "$LICENSE_DIR" -type f | sort)
+      if [ -n "$LICENSE_FILES" ]; then
+        # `awk` join with two blank lines between files, matching the
+        # reference artefact's separator.
+        awk 'FNR==1 && NR>1 { print ""; print ""; print "" } { print }' \\
+          $LICENSE_FILES > #{shell_quote(pp_dst)}/legal-info/#{br_package}.txt
+      fi
     fi
 
     # Make the extracted output owned by the host user so the Mix task
