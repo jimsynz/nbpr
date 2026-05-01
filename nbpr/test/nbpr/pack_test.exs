@@ -117,7 +117,10 @@ defmodule NBPR.PackTest do
         tarball = NBPR.Pack.pack!(@inputs, %{target: target_src}, "out")
 
         assert File.regular?(tarball)
-        assert Path.dirname(tarball) == Path.expand("out", tmp)
+        # Tarball must be absolute (so callers don't have to track cwd)
+        # and named correctly.
+        assert Path.type(tarball) == :absolute
+        assert Path.basename(tarball) == NBPR.Artifact.tarball_name(@inputs)
       after
         File.cd!(original_cwd)
       end
