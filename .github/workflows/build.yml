@@ -26,6 +26,7 @@ jobs:
         run: |
           mix local.hex --force
           mix local.rebar --force
+          mix archive.install hex nerves_bootstrap --force
           mix deps.get
 
       # `mix nbpr.matrix` reads the workspace `mix.exs` `@prebuild_systems`
@@ -92,6 +93,7 @@ jobs:
         run: |
           mix local.hex --force
           mix local.rebar --force
+          mix archive.install hex nerves_bootstrap --force
           mix deps.get
 
       - name: Build artefact

@@ -44,9 +44,12 @@ defmodule NBPR.Workspace.MixProject do
       version: "0.0.0",
       elixir: "~> 1.16",
       archives: [nerves_bootstrap: "~> 1.15"],
-      deps: deps(),
-      preferred_cli_target: [run: :host, test: :host]
+      deps: deps()
     ]
+  end
+
+  def cli do
+    [preferred_targets: [run: :host, test: :host]]
   end
 
   def application do
