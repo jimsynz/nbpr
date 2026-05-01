@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "nbpr-v*"
+      - "nbpr_jq-v*"
+      - "nbpr_dnsmasq-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. nbpr_jq-v1.8.1) — must already exist"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      # Route the tag → package + working dir.
+      #
+      # Tag conventions:
+      #   nbpr-v<vsn>            → :nbpr library, published to public hex.pm
+      #   nbpr_<name>-v<vsn>     → :nbpr_<name> package, published to `nbpr` org
+      - id: route
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          PKG="${TAG%-v*}"
+          case "$PKG" in
+            nbpr)
+              echo "package=$PKG" >> "$GITHUB_OUTPUT"
+              echo "dir=nbpr" >> "$GITHUB_OUTPUT"
+              echo "publish_args=" >> "$GITHUB_OUTPUT"
+              ;;
+            nbpr_*)
+              echo "package=$PKG" >> "$GITHUB_OUTPUT"
+              echo "dir=packages/$PKG" >> "$GITHUB_OUTPUT"
+              echo "publish_args=--organization nbpr" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::tag $TAG does not match any nbpr release pattern"
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve deps
+        working-directory: ${{ steps.route.outputs.dir }}
+        env:
+          # Switches `:nbpr_*` deps from `path:` to `~> 0.1` Hex requirement
+          # — Hex publish forbids path deps. No-op for the `:nbpr` library
+          # itself (no path deps).
+          NBPR_RELEASE: "1"
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Publish to Hex
+        working-directory: ${{ steps.route.outputs.dir }}
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          NBPR_RELEASE: "1"
+        run: |
+          mix hex.publish package --yes ${{ steps.route.outputs.publish_args }}
+
+      - name: Summary
+        run: |
+          echo "Published ${{ steps.route.outputs.package }} from ${{ steps.route.outputs.dir }}"

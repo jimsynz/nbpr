@@ -12,8 +12,12 @@ defmodule Nbpr.Jq.MixProject do
       deps: deps(),
       description: "Lightweight JSON processor (`jq`) packaged for Nerves",
       package: [
+        organization: "nbpr",
         licenses: ["MIT"],
-        links: %{"jq" => "https://jqlang.github.io/jq/"}
+        links: %{
+          "jq" => "https://jqlang.github.io/jq/",
+          "GitHub" => "https://github.com/jimsynz/nbpr"
+        }
       ]
     ]
   end
@@ -24,7 +28,17 @@ defmodule Nbpr.Jq.MixProject do
 
   defp deps do
     [
-      {:nbpr, path: "../../nbpr"}
+      {:nbpr, nbpr_dep()}
     ]
+  end
+
+  # Path dep for local dev (sibling `:nbpr/` in the workspace); Hex
+  # requirement when the env is set for publishing. Hex publish forbids
+  # path deps, so we switch the spec only when the workflow asks for it.
+  defp nbpr_dep do
+    case System.get_env("NBPR_RELEASE") do
+      "1" -> "~> 0.1"
+      _ -> [path: "../../nbpr"]
+    end
   end
 end

@@ -1,7 +1,19 @@
 # NBPR Spike Plan
 
-**Status:** Phases 1, 2, 3 (priv-mode), 4.1–4.6 complete. Source-build path validated end-to-end on macOS host across rpi4/rpi5/bbb (aarch64 + armv7). `mix nbpr.fetch` falls back to source-build when no prebuilt artefact is published, auto-shimming the system source from GitHub for users on Hex `nerves_system_*` deps. Per-package output filtered via BR's files-list (~22× artefact size reduction); legal-info collected and matches the canonical layout. Phase 5 (daemon module generation for `nbpr_dnsmasq`) and Phase 6 (CI matrix + Hex publish) are the remaining pieces before unblocking external users.
+**Status:** Phases 1, 2, 3 (priv-mode), 4.1–4.6, 5, 6.1–6.2 complete. Source-build path validated end-to-end on macOS host across rpi4/rpi5/bbb. `mix nbpr.fetch` falls back to source-build when no prebuilt artefact is published, auto-shimming the system source from GitHub for users on Hex `nerves_system_*` deps. CI matrix builds + publishes (package × target × system_version) to GHCR, currently covering `:nbpr_jq` and `:nbpr_dnsmasq` for the eight popular Nerves systems (rpi0, rpi0_2, rpi3, rpi3a, rpi4, rpi5, bbb, x86_64). Hex publish workflow drafted but pending first tag (`mix hex.publish` → public Hex.pm for `:nbpr` library, `nbpr` org for `:nbpr_*` packages). Phase 6.3 (QEMU smoke test) outstanding.
 **Last updated:** 2026-05-01
+
+## Hex publish bootstrap (one-time)
+
+Required setup before tagging the first release:
+
+1. Hex.pm `nbpr` organisation exists with the publishing user as a member
+   (paid hex.pm org subscription).
+2. `HEX_API_KEY` GitHub Actions secret is set, owned by a user with publish
+   access to the `nbpr` org.
+3. Publish order matters — `:nbpr_*` packages depend on `:nbpr`, so tag
+   `nbpr-v0.1.0` first to land the library on public Hex.pm, then tag
+   `nbpr_jq-v1.8.1` etc. to publish to the `nbpr` org.
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. A user's app declares `{:nbpr_jq, "~> 1.0", repo: "nbpr"}` and gets the binary in their rootfs at firmware build time, with optional MuonTrap supervision wrappers for daemon-bearing packages.
 
