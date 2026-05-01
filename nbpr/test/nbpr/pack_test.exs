@@ -103,5 +103,24 @@ defmodule NBPR.PackTest do
         NBPR.Pack.pack!(@inputs, %{target: bogus}, Path.join(tmp, "out"))
       end
     end
+
+    test "accepts a relative output_dir (CI passes `-o out/`)", %{tmp: tmp} do
+      target_src = Path.join(tmp, "src/target")
+      File.mkdir_p!(Path.join(target_src, "usr/bin"))
+      File.write!(Path.join(target_src, "usr/bin/jq"), "stub")
+
+      original_cwd = File.cwd!()
+      File.cd!(tmp)
+
+      try do
+        File.mkdir_p!("out")
+        tarball = NBPR.Pack.pack!(@inputs, %{target: target_src}, "out")
+
+        assert File.regular?(tarball)
+        assert Path.dirname(tarball) == Path.expand("out", tmp)
+      after
+        File.cd!(original_cwd)
+      end
+    end
   end
 end

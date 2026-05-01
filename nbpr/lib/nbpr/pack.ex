@@ -47,7 +47,9 @@ defmodule NBPR.Pack do
 
     try do
       assemble!(inputs, sources, staging_dir)
-      tar_path = Path.join(output_dir, Artifact.tarball_name(inputs))
+      # Absolute path so the `File.cd!` in `tar!/3` doesn't resolve it
+      # relative to the staging dir.
+      tar_path = Path.expand(Path.join(output_dir, Artifact.tarball_name(inputs)))
       tar!(staging_dir, Artifact.dir_name(inputs), tar_path)
       tar_path
     after
