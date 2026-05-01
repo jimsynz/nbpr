@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: nbpr
+          - dir: packages/nbpr_jq
+          - dir: packages/nbpr_dnsmasq
+
+    name: test (${{ matrix.dir }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Restore deps cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.dir }}/deps
+            ${{ matrix.dir }}/_build
+          key: deps-${{ matrix.dir }}-${{ hashFiles(format('{0}/mix.lock', matrix.dir)) }}
+          restore-keys: |
+            deps-${{ matrix.dir }}-
+
+      - name: Get deps
+        working-directory: ${{ matrix.dir }}
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Compile (warnings as errors)
+        working-directory: ${{ matrix.dir }}
+        run: mix compile --warnings-as-errors
+
+      - name: Test
+        working-directory: ${{ matrix.dir }}
+        run: mix test

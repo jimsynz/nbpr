@@ -1,0 +1,129 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      # Mix won't run any task before `deps.get`; `mix nbpr.matrix` itself
+      # only reads project metadata, but the workspace declares the
+      # `:nbpr_*` package path-deps which Mix wants resolved first.
+      - name: Resolve host deps
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      # `mix nbpr.matrix` reads the workspace `mix.exs` `@prebuild_systems`
+      # and walks `packages/nbpr_*` to emit (package × target × system_version).
+      - id: gen
+        run: |
+          MATRIX=$(mix nbpr.matrix --json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Generated matrix:"
+          echo "$MATRIX" | python3 -m json.tool
+
+  build:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+
+    name: ${{ matrix.package }} / ${{ matrix.target }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      # Buildroot download cache: keyed on system+version because BR version
+      # (and therefore source tarball + toolchain set) is determined by the
+      # active `nerves_system_*`. Cross-target sharing within the same BR
+      # version happens naturally if any future targets land on the same
+      # version.
+      - name: Cache Buildroot downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/nerves/buildroot-dl
+          key: br-dl-${{ matrix.target }}-${{ matrix.system_version }}
+          restore-keys: |
+            br-dl-${{ matrix.target }}-
+
+      # GitHub-fetched system source; static per (system, version).
+      - name: Cache nerves_system source shim
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/nerves/nbpr/system-source
+          key: sys-src-${{ matrix.target }}-${{ matrix.system_version }}
+
+      # Patched Buildroot tree; static per BR version. Multiple targets on
+      # the same BR version share this.
+      - name: Cache Buildroot source tree
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/nerves/nbpr/buildroot
+          key: br-src-${{ matrix.system_version }}
+
+      - name: Resolve Hex/git deps for this target
+        env:
+          MIX_TARGET: ${{ matrix.target }}
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Build artefact
+        env:
+          MIX_TARGET: ${{ matrix.target }}
+          # On Linux runners, take `Build`'s native path rather than the
+          # Docker fallback. Avoids pulling the 1 GB canonical BR container
+          # per matrix entry — `ubuntu-latest`'s host gcc / make / patch
+          # is sufficient for cross-builds since the actual cross-compile
+          # is done by the cached BR-extracted toolchain, not the host's gcc.
+          IN_NERVES_DEV_SHELL: "1"
+        run: |
+          mkdir -p out
+          mix nbpr.build ${{ matrix.module }} -o out/
+          ls -la out/
+
+      - name: Publish to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # nbpr.publish short-circuits when the tag is already on GHCR
+          # (NBPR's cache-key model treats published tarballs as immutable).
+          for tarball in out/*.tar.gz; do
+            mix nbpr.publish ${{ matrix.module }} "$tarball"
+          done
+
+      - name: Upload artefact (PR runs)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}-${{ matrix.target }}-${{ matrix.system_version }}
+          path: out/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
