@@ -81,7 +81,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
     tag = ghcr_tag!(tarball, package_app)
     reference = "ghcr.io/#{image}:#{tag}"
 
-    if not opts[:force] and tag_already_published?(image, tag, reference) do
+    if !opts[:force] and tag_already_published?(image, tag, reference) do
       Mix.shell().info(
         "[nbpr] tag already published at #{reference} — skipping " <>
           "(pass `--force` to re-push)"
