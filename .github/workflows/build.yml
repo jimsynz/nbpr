@@ -99,13 +99,13 @@ jobs:
       - name: Build artefact
         env:
           MIX_TARGET: ${{ matrix.target }}
-          # On Linux runners, take `Build`'s native path rather than the
-          # Docker fallback. Avoids pulling the 1 GB canonical BR container
-          # per matrix entry — `ubuntu-latest`'s host gcc / make / patch
-          # is sufficient for cross-builds since the actual cross-compile
-          # is done by the cached BR-extracted toolchain, not the host's gcc.
-          IN_NERVES_DEV_SHELL: "1"
         run: |
+          # Take the Docker fallback path on plain `ubuntu-latest` runners.
+          # The native path requires a Nerves canonical build env — stock
+          # ubuntu's gcc mishandles the cross-toolchain wrappers (stray
+          # `gnu` ends up in CFLAGS, breaks compile of larger packages
+          # like dnsmasq). Docker pulls the 1 GB canonical container once
+          # per runner; cached buildroot-dl tarballs are mounted in.
           mkdir -p out
           mix nbpr.build ${{ matrix.module }} -o out/
           ls -la out/
