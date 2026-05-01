@@ -65,7 +65,7 @@ jobs:
       # version happens naturally if any future targets land on the same
       # version.
       - name: Cache Buildroot downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/nerves/buildroot-dl
           key: br-dl-${{ matrix.target }}-${{ matrix.system_version }}
@@ -74,7 +74,7 @@ jobs:
 
       # GitHub-fetched system source; static per (system, version).
       - name: Cache nerves_system source shim
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/nerves/nbpr/system-source
           key: sys-src-${{ matrix.target }}-${{ matrix.system_version }}
@@ -82,7 +82,7 @@ jobs:
       # Patched Buildroot tree; static per BR version. Multiple targets on
       # the same BR version share this.
       - name: Cache Buildroot source tree
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/nerves/nbpr/buildroot
           key: br-src-${{ matrix.system_version }}
