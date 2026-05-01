@@ -26,6 +26,9 @@ defmodule NBPR.DnsmasqTest do
 
   describe "generated daemon module" do
     test "exports child_spec/1, start_link/1, argv/1, binary_path/0" do
+      # `function_exported?` returns false for unloaded modules; ensure the
+      # generated submodule is loaded before checking exports.
+      assert Code.ensure_loaded?(NBPR.Dnsmasq.Dnsmasq)
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :child_spec, 1)
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :start_link, 1)
       assert function_exported?(NBPR.Dnsmasq.Dnsmasq, :argv, 1)
