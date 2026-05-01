@@ -21,9 +21,22 @@ defmodule NBPR.Workspace.MixProject do
   # any of these *will* invalidate prebuilt artefacts on GHCR for that
   # (package, system) combination, since the system_version component of
   # the cache key changes.
-  @system_versions %{
-    rpi4: "2.0.2"
+  #
+  # Single source of truth for the CI prebuild matrix
+  # (`mix nbpr.matrix --json`). Map shape: `target => {github, version}`.
+  @prebuild_systems %{
+    rpi4: {"nerves-project/nerves_system_rpi4", "2.0.2"},
+    bbb: {"nerves-project/nerves_system_bbb", "2.29.2"}
   }
+
+  @doc """
+  Returns the prebuild matrix as a list of `{target, github, version}` tuples.
+  Used by `mix nbpr.matrix` to emit the GHA dynamic matrix.
+  """
+  def prebuild_systems do
+    for {target, {github, version}} <- @prebuild_systems,
+        do: {target, github, version}
+  end
 
   def project do
     [
@@ -41,30 +54,36 @@ defmodule NBPR.Workspace.MixProject do
   end
 
   defp deps do
-    [
+    base = [
       # The :nbpr library + its tasks
       {:nbpr, path: "nbpr"},
 
       # Nerves itself, so Nerves.Env resolves the active system
-      {:nerves, "~> 1.14", runtime: false},
+      {:nerves, "~> 1.14", runtime: false}
+    ]
 
-      # Systems to source-build against. We pull these from GitHub rather
-      # than Hex because the Hex tarballs deliberately exclude Config.in
-      # and patches/ (Hex users consume the prebuilt artefact, not source).
-      #
-      # Adding a new target system requires its `nerves_system_br` pin to
-      # match the others. As of this writing rpi4 v2.0.2 → nerves_system_br
-      # 1.33.5; older systems (e.g. x86_64 v1.13.0 → 1.13.x) are
-      # incompatible until they're bumped.
-      system_dep(:rpi4, "nerves-project/nerves_system_rpi4")
-    ] ++ package_deps()
+    # `MIX_TARGET` selects exactly one system. Only that system's git pin is
+    # in the dep tree — different systems pin different `nerves_system_br`
+    # versions, so resolving multiple at once would conflict. Build all
+    # supported targets in CI by re-running `mix deps.get && mix nbpr.build`
+    # under each `MIX_TARGET=<target>`.
+    base ++ system_dep_for(Mix.target()) ++ package_deps()
   end
 
-  defp system_dep(target, github) do
-    version = Map.fetch!(@system_versions, target)
-    app = String.to_atom("nerves_system_#{target}")
+  defp system_dep_for(:host), do: []
 
-    {app, github: github, tag: "v#{version}", runtime: false, targets: target}
+  defp system_dep_for(target) do
+    case Map.fetch(@prebuild_systems, target) do
+      {:ok, {github, version}} ->
+        app = String.to_atom("nerves_system_#{target}")
+        [{app, github: github, tag: "v#{version}", runtime: false, targets: target}]
+
+      :error ->
+        Mix.raise(
+          "no `@prebuild_systems` entry for target #{inspect(target)}; " <>
+            "add one to mix.exs to enable building against it"
+        )
+    end
   end
 
   # Auto-discover every `packages/nbpr_*/` and add it as a path dep so
