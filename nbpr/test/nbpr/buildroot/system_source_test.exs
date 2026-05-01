@@ -1,0 +1,112 @@
+defmodule NBPR.Buildroot.SystemSourceTest do
+  use ExUnit.Case, async: false
+
+  alias NBPR.Buildroot.SystemSource
+
+  describe "ensure!/2 — passthrough branch" do
+    test "returns deps path directly when Config.in is already present" do
+      tmp = make_tmp!()
+      deps = Path.join(tmp, "deps")
+      File.mkdir_p!(Path.join(deps, "nerves_system_test"))
+      File.write!(Path.join([deps, "nerves_system_test", "Config.in"]), "# stub\n")
+
+      with_deps_path(deps, fn ->
+        path = SystemSource.ensure!(:nerves_system_test, "1.2.3")
+        assert path == Path.join(deps, "nerves_system_test")
+      end)
+    end
+
+    test "raises when deps directory is missing entirely" do
+      tmp = make_tmp!()
+      deps = Path.join(tmp, "deps")
+      File.mkdir_p!(deps)
+
+      with_deps_path(deps, fn ->
+        assert_raise Mix.Error, ~r/system source not found/, fn ->
+          SystemSource.ensure!(:nerves_system_absent, "1.0.0")
+        end
+      end)
+    end
+  end
+
+  describe "ensure!/2 — Hex tarball branch" do
+    test "raises with mix.exs guidance when hex_metadata.config is missing" do
+      tmp = make_tmp!()
+      deps = Path.join(tmp, "deps")
+      sys_dir = Path.join(deps, "nerves_system_vendored")
+      File.mkdir_p!(sys_dir)
+
+      with_deps_path(deps, fn ->
+        assert_raise Mix.Error, ~r/no `hex_metadata.config`/, fn ->
+          SystemSource.ensure!(:nerves_system_vendored, "0.1.0")
+        end
+      end)
+    end
+
+    test "raises with mix.exs guidance when hex_metadata.config has no GitHub link" do
+      tmp = make_tmp!()
+      deps = Path.join(tmp, "deps")
+      sys_dir = Path.join(deps, "nerves_system_strange")
+      File.mkdir_p!(sys_dir)
+
+      File.write!(Path.join(sys_dir, "hex_metadata.config"), """
+      {<<"links">>,[{<<"Other">>,<<"https://example.com">>}]}.
+      {<<"name">>,<<"nerves_system_strange">>}.
+      """)
+
+      with_deps_path(deps, fn ->
+        assert_raise Mix.Error, ~r/links\.GitHub/, fn ->
+          SystemSource.ensure!(:nerves_system_strange, "0.1.0")
+        end
+      end)
+    end
+
+    test "returns the cache path without re-fetching when `.nbpr-ready` is present" do
+      tmp = make_tmp!()
+      deps = Path.join(tmp, "deps")
+      sys_dir = Path.join(deps, "nerves_system_cached")
+      File.mkdir_p!(sys_dir)
+
+      File.write!(Path.join(sys_dir, "hex_metadata.config"), """
+      {<<"links">>,[{<<"GitHub">>,<<"https://github.com/example/nerves_system_cached">>}]}.
+      """)
+
+      cache = SystemSource.cache_dir(:nerves_system_cached, "9.9.9")
+      File.mkdir_p!(cache)
+      File.write!(Path.join(cache, "Config.in"), "# pretend\n")
+      File.write!(Path.join(cache, ".nbpr-ready"), "9.9.9\n")
+      on_exit(fn -> File.rm_rf!(cache) end)
+
+      with_deps_path(deps, fn ->
+        path = SystemSource.ensure!(:nerves_system_cached, "9.9.9")
+        assert path == cache
+      end)
+    end
+  end
+
+  defp make_tmp! do
+    dir =
+      Path.join(System.tmp_dir!(), "nbpr_system_source_test_#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    dir
+  end
+
+  defp with_deps_path(deps, fun) do
+    original = Mix.Project.deps_path()
+
+    try do
+      Mix.Project.in_project(:test_project, deps, [deps_path: deps], fn _ -> fun.() end)
+    rescue
+      _ ->
+        # Fallback: many test setups don't allow `in_project` — set the env var instead.
+        System.put_env("MIX_DEPS_PATH", deps)
+        try do
+          fun.()
+        after
+          if original, do: System.put_env("MIX_DEPS_PATH", original), else: System.delete_env("MIX_DEPS_PATH")
+        end
+    end
+  end
+end

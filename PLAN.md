@@ -1,6 +1,6 @@
 # NBPR Spike Plan
 
-**Status:** Phases 1, 2, 4.1–4.4, 4.6 complete. Priv-mode pivot landed (artefacts install into each package's `priv/`; Nerves-side `:extra_rootfs_overlays` PR closed as no longer needed). Phase 4.5 (Docker wrapper for non-Linux hosts) is the last remaining piece for `mix nbpr.build` to work everywhere.
+**Status:** Phases 1, 2, 3 (priv-mode), 4.1–4.6 complete. Source-build path validated end-to-end on macOS host across rpi4/rpi5/bbb (aarch64 + armv7). `mix nbpr.fetch` falls back to source-build when no prebuilt artefact is published, auto-shimming the system source from GitHub for users on Hex `nerves_system_*` deps. Per-package output filtered via BR's files-list (~22× artefact size reduction); legal-info collected and matches the canonical layout. Phase 5 (daemon module generation for `nbpr_dnsmasq`) and Phase 6 (CI matrix + Hex publish) are the remaining pieces before unblocking external users.
 **Last updated:** 2026-05-01
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. A user's app declares `{:nbpr_jq, "~> 1.0", repo: "nbpr"}` and gets the binary in their rootfs at firmware build time, with optional MuonTrap supervision wrappers for daemon-bearing packages.
