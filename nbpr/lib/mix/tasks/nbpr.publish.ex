@@ -27,13 +27,16 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
     * `--draft` — only applies to `github_releases`; creates the release as a draft on first creation.
     * `--prerelease` — only applies to `github_releases`; marks the release as a prerelease on first creation.
+    * `--force` — only applies to `ghcr`; re-pushes even when the tag is already published. By default, `nbpr.publish` checks GHCR for the tag and skips re-pushing — NBPR's cache-key model treats published tarballs as immutable, so re-pushing the same tag is wasted work in CI.
   """
 
   use Mix.Task
 
+  alias NBPR.Artifact.Resolvers.GHCR
+
   @requirements ["app.config"]
 
-  @switches [draft: :boolean, prerelease: :boolean]
+  @switches [draft: :boolean, prerelease: :boolean, force: :boolean]
 
   @impl Mix.Task
   def run(args) do
@@ -53,7 +56,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
     pkg = module.__nbpr_package__()
 
     case pick_site(pkg) do
-      {:ghcr, prefix} -> publish_ghcr!(prefix, pkg, tarball)
+      {:ghcr, prefix} -> publish_ghcr!(prefix, pkg, tarball, opts)
       {:github_releases, owner_repo} -> publish_release!(owner_repo, pkg, tarball, opts)
       nil -> Mix.raise("no supported `artifact_sites:` declared on #{inspect(module)}")
     end
@@ -72,18 +75,39 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
   # ───────── GHCR ─────────
 
-  defp publish_ghcr!("ghcr.io/" <> owner = _prefix, pkg, tarball) do
+  defp publish_ghcr!("ghcr.io/" <> owner = _prefix, pkg, tarball, opts) do
     package_app = "nbpr_#{pkg.name}"
     image = "#{owner}/#{package_app}"
     tag = ghcr_tag!(tarball, package_app)
     reference = "ghcr.io/#{image}:#{tag}"
 
-    NBPR.OCI.Push.push!(image, tag, tarball)
-    Mix.shell().info("[nbpr] pushed #{Path.basename(tarball)} to #{reference}")
+    if not opts[:force] and tag_already_published?(image, tag, reference) do
+      Mix.shell().info(
+        "[nbpr] tag already published at #{reference} — skipping " <>
+          "(pass `--force` to re-push)"
+      )
+    else
+      NBPR.OCI.Push.push!(image, tag, tarball)
+      Mix.shell().info("[nbpr] pushed #{Path.basename(tarball)} to #{reference}")
+    end
   end
 
-  defp publish_ghcr!(prefix, _pkg, _tarball) do
+  defp publish_ghcr!(prefix, _pkg, _tarball, _opts) do
     Mix.raise("ghcr prefix must start with `ghcr.io/`; got #{inspect(prefix)}")
+  end
+
+  defp tag_already_published?(image, tag, reference) do
+    case GHCR.tag_exists?(image, tag) do
+      {:ok, exists?} ->
+        exists?
+
+      {:error, reason} ->
+        Mix.shell().info(
+          "[nbpr] could not check #{reference} (#{inspect(reason)}); pushing anyway"
+        )
+
+        false
+    end
   end
 
   defp ghcr_tag!(tarball_path, package_app) do

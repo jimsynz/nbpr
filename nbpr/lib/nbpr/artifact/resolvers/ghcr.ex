@@ -53,6 +53,47 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
     "#{inputs.package_version}-#{inputs.system_app}-#{inputs.system_version}-#{Artifact.cache_key(inputs)}"
   end
 
+  @doc """
+  Checks anonymously whether `<image>:<tag>` already has a manifest published.
+
+  Returns `{:ok, true}` for HTTP 200, `{:ok, false}` for HTTP 404, and
+  `{:error, reason}` for other failures (auth, network, malformed JSON).
+  Uses the same anonymous-pull token flow as `get/2`, so packages need
+  `public` visibility on GHCR for this to work without credentials.
+
+  Used by `mix nbpr.publish` to short-circuit when the artefact's tag is
+  already published — NBPR's cache-key model treats published tarballs as
+  immutable, so re-pushing the same key is wasted work.
+  """
+  @spec tag_exists?(String.t(), String.t()) ::
+          {:ok, boolean()} | {:error, term()}
+  def tag_exists?(image, tag) when is_binary(image) and is_binary(tag) do
+    NBPR.Artifact.HTTP.start_apps!()
+
+    with {:ok, token} <- fetch_token(image),
+         {:ok, status} <- head_manifest_status(image, tag, token) do
+      case status do
+        200 -> {:ok, true}
+        404 -> {:ok, false}
+        other -> {:error, {:manifest_http, other}}
+      end
+    end
+  end
+
+  defp head_manifest_status(image, tag, token) do
+    url = "https://ghcr.io/v2/#{image}/manifests/#{tag}" |> String.to_charlist()
+
+    headers = [
+      {~c"authorization", String.to_charlist("Bearer " <> token)},
+      {~c"accept", String.to_charlist(@manifest_media_type)}
+    ]
+
+    case :httpc.request(:head, {url, headers}, [autoredirect: true], []) do
+      {:ok, {{_, status, _}, _, _}} -> {:ok, status}
+      {:error, reason} -> {:error, {:manifest_fetch, reason}}
+    end
+  end
+
   defp fetch_token(image) do
     url =
       "https://ghcr.io/token?service=ghcr.io&scope=repository:#{image}:pull"
