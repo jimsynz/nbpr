@@ -20,7 +20,7 @@ jobs:
     name: test (${{ matrix.dir }})
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: erlef/setup-beam@v1
         with:
