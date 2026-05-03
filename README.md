@@ -2,7 +2,7 @@
 
 Nerves Binary Package Repository — a curated Hex repo for distributing Buildroot-built target packages to Nerves firmware projects.
 
-This workspace is **pre-spike**. See `PLAN.md` for the implementation plan and `CLAUDE.md` for design context.
+See `PLAN.md` for current status and `CLAUDE.md` for scope and design context.
 
 ## Layout
 

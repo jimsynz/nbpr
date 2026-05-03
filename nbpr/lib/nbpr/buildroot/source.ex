@@ -50,6 +50,25 @@ defmodule NBPR.Buildroot.Source do
   end
 
   @doc """
+  Returns `true` when the BR tarball for `version` is sitting in the
+  download cache. Useful for deciding whether `ensure!/2` would do
+  network — if both `cached?/1` and `tarball_cached?/1` are false, the
+  next `ensure!/2` will fetch over HTTP.
+  """
+  @spec tarball_cached?(String.t()) :: boolean()
+  def tarball_cached?(version) do
+    File.regular?(tarball_path(version))
+  end
+
+  @doc """
+  Returns the path the BR tarball for `version` is (or will be) cached at.
+  """
+  @spec tarball_path(String.t()) :: Path.t()
+  def tarball_path(version) when is_binary(version) do
+    Path.join(download_dir(), "buildroot-#{version}.tar.gz")
+  end
+
+  @doc """
   Ensures BR `version` is downloaded, extracted, patched against
   `patches_dir`, and ready at `cache_dir(version)`. Returns the cache path.
 
@@ -87,7 +106,7 @@ defmodule NBPR.Buildroot.Source do
     HTTP.start_apps!()
     File.mkdir_p!(download_dir())
 
-    tarball = Path.join(download_dir(), "buildroot-#{version}.tar.gz")
+    tarball = tarball_path(version)
     unless File.regular?(tarball), do: download!(version, tarball)
 
     extract_and_install!(version, tarball, patches_dir)

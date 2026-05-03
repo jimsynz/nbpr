@@ -6,16 +6,35 @@ on:
   pull_request:
 
 jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # Test matrix = the library plus every package directory. No Mix
+      # involved — globbing is sufficient and keeps this job network-free
+      # so it runs fast and can't be blocked by a Mix dep failure.
+      - id: gen
+        run: |
+          MATRIX=$(
+            { echo nbpr; ls -1d packages/*/; } |
+              sed 's|/$||' |
+              jq -R '{dir: .}' |
+              jq -sc '{include: .}'
+          )
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Generated matrix:"
+          echo "$MATRIX" | python3 -m json.tool
+
   test:
+    needs: generate-matrix
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - dir: nbpr
-          - dir: packages/nbpr_jq
-          - dir: packages/nbpr_dnsmasq
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     name: test (${{ matrix.dir }})
 

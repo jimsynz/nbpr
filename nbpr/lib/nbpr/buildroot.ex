@@ -19,12 +19,25 @@ defmodule NBPR.Buildroot do
   """
 
   @doc """
-  Returns the absolute path to `deps/nerves_system_br/` in the user's
-  project, or `{:error, :not_found}` if it isn't a dep.
+  Returns the absolute path to `deps/nerves_system_br/` in the active Mix
+  project's deps tree, or `{:error, :not_found}` if it isn't a dep.
+
+  Use `nerves_system_br_path/1` when the lookup needs to span a different
+  Mix project (e.g. a generator running inside the `:nbpr` library that
+  needs to locate the *workspace's* `nerves_system_br`).
   """
   @spec nerves_system_br_path() :: {:ok, Path.t()} | {:error, :not_found}
   def nerves_system_br_path do
-    candidate = Path.join(Mix.Project.deps_path(), "nerves_system_br")
+    nerves_system_br_path(Mix.Project.deps_path())
+  end
+
+  @doc """
+  Returns the absolute path to `nerves_system_br/` under `deps_path`, or
+  `{:error, :not_found}` if absent.
+  """
+  @spec nerves_system_br_path(Path.t()) :: {:ok, Path.t()} | {:error, :not_found}
+  def nerves_system_br_path(deps_path) do
+    candidate = Path.join(deps_path, "nerves_system_br")
 
     if File.dir?(candidate) do
       {:ok, candidate}

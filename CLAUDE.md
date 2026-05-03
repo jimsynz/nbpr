@@ -4,7 +4,7 @@
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. Users declare `{:nbpr_jq, "~> 1.0", repo: "nbpr"}` in their app's `mix.exs` and the binary lands in their rootfs at firmware-build time. Packages with daemons additionally generate MuonTrap-supervised GenServer modules the user adds to their supervision tree. Packages bearing out-of-tree kernel modules generate an `Application` that auto-loads them at boot via `modprobe`.
 
-This repo is **pre-spike**. See `PLAN.md` for the phased implementation plan and current status.
+See `PLAN.md` for current status, outstanding work, and Hex publish bootstrap.
 
 ## Scope
 
@@ -22,7 +22,7 @@ Out of scope:
 
 ## Workspace layout
 
-Flat monorepo, not an umbrella. See `PLAN.md` for the full tree. Briefly:
+Flat monorepo, not an umbrella:
 
 - `mix.exs` (root) — the **build-harness** Mix project. Pulls in `:nerves`, the `nerves_system_*` deps for every target we want to build for, and every `packages/nbpr_*/` as a path dep. `mix nbpr.build` runs from here so `Nerves.Env.system/0` resolves and the `NBPR.<Camel>` modules are loadable. Not a Nerves application, not user-facing — just a tooling shim.
 - `nbpr/` — the library: `NBPR.BrPackage` macro, build runner, artefact resolver, `mix firmware` hook.
@@ -68,14 +68,7 @@ This workspace sits next to the rest of the Nerves project at `~/Dev/github.com/
 
 When investigating Nerves internals, prefer reading these directly over guessing — the codebase is small and well-organised.
 
-## What's stable vs in flux
-
-- **Stable:** scope decisions in this file, package naming conventions, the high-level architecture in `PLAN.md`.
-- **In flux:** exact `NBPR.BrPackage` `use` opts, artefact tarball internal layout, `Mix.Tasks.Nbpr.*` task names. Lock these down as Phase 1 lands.
-
 ## Working in this repo
 
-- Don't add code ahead of the plan. The plan phases are deliberate; jumping ahead loses the validation each phase provides.
-- When picking up work, check `PLAN.md`'s **Status** line and current phase.
-- The first deliverable is `NBPR.BrPackage` with NimbleOptions schema and `Mix.Tasks.Nbpr.Inspect`. Resist adding the source-build path until the macro shape is settled.
+- When picking up work, check `PLAN.md` for current status and outstanding items.
 - Frank Hunleth and James Harton are the primary design collaborators on this — significant design changes warrant a chat, not a unilateral spike.

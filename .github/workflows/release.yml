@@ -4,8 +4,7 @@ on:
   push:
     tags:
       - "nbpr-v*"
-      - "nbpr_jq-v*"
-      - "nbpr_dnsmasq-v*"
+      - "nbpr_*-v*"
   workflow_dispatch:
     inputs:
       tag:
