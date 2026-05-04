@@ -59,14 +59,13 @@ jobs:
           # itself (no path deps).
           NBPR_RELEASE: "1"
           # `:nbpr_*` packages depend on `:nbpr` from the `nbpr` Hex org;
-          # `mix deps.get` needs a key with read access. Same secret as
-          # the publish step — Hex API keys with publish scope include
-          # read.
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          # `mix deps.get` needs an org-scoped read key. Distinct from
+          # `HEX_API_KEY`, which is publish-only.
+          NBPR_READ_KEY: ${{ secrets.NBPR_READ_KEY }}
         run: |
           mix local.hex --force
           mix local.rebar --force
-          mix hex.organization auth nbpr --key "$HEX_API_KEY"
+          mix hex.organization auth nbpr --key "$NBPR_READ_KEY"
           mix deps.get
 
       - name: Publish to Hex
