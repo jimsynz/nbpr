@@ -13,16 +13,6 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
       aliases: ["firmware": ["nbpr.fetch", "firmware"]]
 
-  ## Why `priv/` instead of a rootfs overlay
-
-  Each nbpr package's binaries and shared libraries land at
-  `<release>/lib/nbpr_<name>-<vsn>/priv/usr/...`. `:code.priv_dir/1`
-  resolves the right place at runtime; `NBPR.Application` sets
-  `PATH` and `LD_LIBRARY_PATH` once at boot so child processes find
-  binaries and inter-package shared libraries. This keeps Mix release
-  semantics intact and avoids two packages stomping on each other in
-  the rootfs.
-
   ## Discovery
 
   An nbpr package is detected by:
@@ -35,6 +25,12 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   Must be run with `MIX_TARGET` set to a real Nerves target — there's no
   work to do for `:host`. The active Nerves system and version are read
   from `Nerves.Env.system/0`.
+
+  ## See also
+
+  The wider rationale for staging into `priv/` (rather than a rootfs overlay)
+  and the runtime `PATH`/`LD_LIBRARY_PATH` setup is in the
+  [Packaging model](packaging-model.md) explanation.
   """
 
   use Mix.Task

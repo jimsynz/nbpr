@@ -98,12 +98,16 @@ A few explicit non-goals:
   simultaneously. NBPR fails loud at resolve time rather than
   letting the user produce a quietly-broken firmware.
 - **Org-scoped binaries, public library.** The `:nbpr` library is on
-  public hex.pm so its docs land on hexdocs and consumers can
-  install via the standard Igniter flow. The binary packages live in
-  a paid Hex organisation — partly for storage costs (binary
-  tarballs aren't free), partly to gate accidental fetches by
-  anonymous users. The org's public read key opens the gate without
-  giving anyone publish rights.
+  public hex.pm so its docs land on hexdocs and consumers can install
+  via the standard Igniter flow. The binary packages live in a Hex
+  organisation primarily to avoid polluting the main hex.pm namespace
+  with potentially hundreds of `:nbpr_*` entries — there's no
+  good-faith reason a casual hex.pm visitor should see all of them
+  scrolling past. The org's public read key opens the gate without
+  giving anyone publish rights, so consumers who want binary packages
+  can fetch them once they're authenticated. The artefact tarballs
+  themselves live on GHCR (free, GitHub-hosted), not in Hex — the
+  Hex package is just metadata + Mix project shape.
 
 ## When you might still want a system fork instead
 
