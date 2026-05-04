@@ -111,6 +111,88 @@ defmodule NBPR.Buildroot.PackageTest do
       assert {:error, {:missing_var, "BROKEN_VERSION"}} = Package.read(br_tree, "broken")
     end
 
+    test "extracts target dependencies from _DEPENDENCIES and `select` lines",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "tcpdump",
+        mk: """
+        TCPDUMP_VERSION = 4.99.5
+        TCPDUMP_LICENSE = BSD-3-Clause
+        TCPDUMP_DEPENDENCIES = libpcap host-pkgconf
+        """,
+        config_in: """
+        config BR2_PACKAGE_TCPDUMP
+        \tbool "tcpdump"
+        \tselect BR2_PACKAGE_LIBPCAP
+        \thelp
+        \t  A network sniffer.
+        """
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "tcpdump")
+      assert pkg.dependencies == ["libpcap"]
+    end
+
+    test "filters host-* deps and $(...) make-variable refs", %{br_tree: br_tree} do
+      write_pkg!(br_tree, "dnsmasq",
+        mk: """
+        DNSMASQ_VERSION = 2.91
+        DNSMASQ_LICENSE = GPL-2.0
+        DNSMASQ_DEPENDENCIES = host-pkgconf $(TARGET_NLS_DEPENDENCIES)
+        """,
+        config_in: """
+        config BR2_PACKAGE_DNSMASQ
+        \tbool "dnsmasq"
+        \thelp
+        \t  DHCP/DNS server.
+        """
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "dnsmasq")
+      assert pkg.dependencies == []
+    end
+
+    test "ignores conditional _DEPENDENCIES += lines", %{br_tree: br_tree} do
+      write_pkg!(br_tree, "strace",
+        mk: """
+        STRACE_VERSION = 6.18
+        STRACE_LICENSE = LGPL-2.1+
+        ifeq ($(BR2_PACKAGE_LIBUNWIND),y)
+        STRACE_DEPENDENCIES += libunwind
+        endif
+        """,
+        config_in: """
+        config BR2_PACKAGE_STRACE
+        \tbool "strace"
+        \thelp
+        \t  Trace system calls.
+        """
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "strace")
+      assert pkg.dependencies == []
+    end
+
+    test "deduplicates deps that appear in both _DEPENDENCIES and `select`",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "thing",
+        mk: """
+        THING_VERSION = 1.0
+        THING_LICENSE = MIT
+        THING_DEPENDENCIES = libpcap
+        """,
+        config_in: """
+        config BR2_PACKAGE_THING
+        \tbool "thing"
+        \tselect BR2_PACKAGE_LIBPCAP
+        \thelp
+        \t  Whatever.
+        """
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "thing")
+      assert pkg.dependencies == ["libpcap"]
+    end
+
     test "tolerates Config.in missing entirely", %{br_tree: br_tree} do
       pkg_dir = Path.join([br_tree, "package", "minimal"])
       File.mkdir_p!(pkg_dir)

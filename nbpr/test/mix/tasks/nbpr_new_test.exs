@@ -53,7 +53,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       contents = File.read!(Path.join(tmp, "packages/nbpr_containerd/mix.exs"))
 
       assert contents =~ "app: :nbpr_containerd"
-      assert contents =~ "[nbpr_dep()]"
+      assert contents =~ ~s|nbpr_dep(:nbpr, "~> 0.1")|
+      assert contents =~ "defp nbpr_dep(name, requirement)"
       assert contents =~ ~s|organization: "nbpr"|
       assert contents =~ "NBPR_RELEASE"
     end
@@ -244,6 +245,55 @@ defmodule Mix.Tasks.Nbpr.NewTest do
         end)
       end
     end
+
+    test "auto-adds resolved sibling deps to mix.exs", %{tmp: tmp} do
+      seed_br_cache_pkg_with_deps!(
+        "needslib",
+        deps: "siblingpkg host-pkgconf",
+        selects: []
+      )
+
+      seed_workspace_sibling!(tmp, "siblingpkg", "1.4.2")
+
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["needslib"]) end)
+      end)
+
+      mix_exs = File.read!(Path.join(tmp, "packages/nbpr_needslib/mix.exs"))
+
+      assert mix_exs =~ ~s|nbpr_dep(:nbpr, "~> 0.1")|
+      assert mix_exs =~ ~s|nbpr_dep(:nbpr_siblingpkg, "~> 1.0")|
+    end
+
+    test "warns about BR deps with no sibling package", %{tmp: tmp} do
+      seed_br_cache_pkg_with_deps!(
+        "needslib",
+        deps: "missingdep host-pkgconf",
+        selects: ["ANOTHERMISSING"]
+      )
+
+      output =
+        capture_io(fn ->
+          File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["needslib"]) end)
+        end)
+
+      assert output =~ ~r/target dependencies\s+that aren't packaged/
+      assert output =~ "missingdep"
+      assert output =~ "anothermissing"
+      assert output =~ "mix nbpr.new <dep>"
+    end
+
+    test "doesn't warn when every BR dep is satisfied", %{tmp: tmp} do
+      seed_br_cache_pkg_with_deps!("clean", deps: "siblingpkg", selects: [])
+      seed_workspace_sibling!(tmp, "siblingpkg", "1.4.2")
+
+      output =
+        capture_io(fn ->
+          File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["clean"]) end)
+        end)
+
+      refute output =~ ~r/target dependencies\s+that aren't packaged/
+    end
   end
 
   defp seed_nerves_system_br!(workspace, version) do
@@ -304,6 +354,45 @@ defmodule Mix.Tasks.Nbpr.NewTest do
     File.mkdir_p!(pkg_dir)
     File.write!(Path.join(pkg_dir, "#{name}.mk"), mk)
     File.write!(Path.join(pkg_dir, "Config.in"), config_in)
+  end
+
+  defp seed_br_cache_pkg_with_deps!(name, deps: deps, selects: selects) do
+    artifacts = System.get_env("NERVES_ARTIFACTS_DIR")
+    cache_dir = Path.join([artifacts, "nbpr", "buildroot", @br_version])
+    upper = name |> String.upcase() |> String.replace("-", "_")
+
+    select_lines =
+      selects
+      |> Enum.map(fn s -> "\tselect BR2_PACKAGE_#{s}\n" end)
+      |> Enum.join()
+
+    seed_pkg_in_cache!(cache_dir, name,
+      mk: """
+      #{upper}_VERSION = 1.0.0
+      #{upper}_SITE = https://example.com/#{name}
+      #{upper}_LICENSE = MIT
+      #{upper}_DEPENDENCIES = #{deps}
+      """,
+      config_in: """
+      config BR2_PACKAGE_#{upper}
+      \tbool "#{name}"
+      #{select_lines}\thelp
+      \t  #{name} fixture.
+      """
+    )
+  end
+
+  defp seed_workspace_sibling!(workspace, short_name, version) do
+    sibling_dir = Path.join([workspace, "packages", "nbpr_#{short_name}"])
+    File.mkdir_p!(sibling_dir)
+
+    File.write!(Path.join(sibling_dir, "mix.exs"), """
+    defmodule Nbpr.#{Macro.camelize(short_name)}.MixProject do
+      use Mix.Project
+      @version "#{version}"
+      def project, do: [app: :nbpr_#{short_name}, version: @version]
+    end
+    """)
   end
 
   defp seed_spdx_cache!(artifacts) do

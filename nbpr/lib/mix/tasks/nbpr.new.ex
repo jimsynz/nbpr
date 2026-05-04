@@ -76,12 +76,87 @@ defmodule Mix.Tasks.Nbpr.New do
     github_repo = derive_github_repo(workspace)
 
     metadata = lookup_metadata(name, br_package_name, opts, workspace)
+    {resolved_deps, missing_deps} = resolve_sibling_deps(metadata, workspace)
 
     files =
-      build_files(name, package, module, project_module, br_package_name, metadata, github_repo)
+      build_files(
+        name,
+        package,
+        module,
+        project_module,
+        br_package_name,
+        metadata,
+        github_repo,
+        resolved_deps
+      )
 
     write_files!(target_dir, files)
+    warn_missing_deps(missing_deps)
     print_next_steps(target_dir, module, metadata)
+  end
+
+  # Splits BR target dependencies into:
+  #   * resolved — `{:nbpr_<dep>, "~> x.y"}` siblings already scaffolded
+  #     under `packages/`, ready to wire up via `nbpr_dep/2`.
+  #   * missing  — BR dep names with no corresponding `packages/nbpr_<n>/`.
+  #     Many will be base-system-provided (e.g. `ncurses`); the generator
+  #     can't know, so it warns and lets the author decide.
+  defp resolve_sibling_deps(nil, _workspace), do: {[], []}
+
+  defp resolve_sibling_deps(%BrPackage{dependencies: deps}, workspace) do
+    packages_dir = Path.join(workspace, "packages")
+
+    Enum.reduce(deps, {[], []}, fn br_dep, {resolved, missing} ->
+      nbpr_name = "nbpr_" <> normalise_dep_name(br_dep)
+      sibling_dir = Path.join(packages_dir, nbpr_name)
+
+      case sibling_version(sibling_dir) do
+        {:ok, version} ->
+          {[{nbpr_name, hex_requirement(version)} | resolved], missing}
+
+        :error ->
+          {resolved, [br_dep | missing]}
+      end
+    end)
+    |> then(fn {resolved, missing} -> {Enum.reverse(resolved), Enum.reverse(missing)} end)
+  end
+
+  # BR uses hyphens in some package directory names (e.g. `kernel-modules`),
+  # but nbpr workspace package names are `[a-z0-9_]` only. Map `-` → `_`.
+  defp normalise_dep_name(name), do: String.replace(name, "-", "_")
+
+  defp sibling_version(sibling_dir) do
+    mix_path = Path.join(sibling_dir, "mix.exs")
+
+    with true <- File.exists?(mix_path),
+         {:ok, contents} <- File.read(mix_path),
+         [_, version] <- Regex.run(~r/@version\s+"([^"]+)"/, contents) do
+      {:ok, version}
+    else
+      _ -> :error
+    end
+  end
+
+  defp warn_missing_deps([]), do: :ok
+
+  defp warn_missing_deps(missing) do
+    list = Enum.map_join(missing, "\n", &"  - #{&1}")
+
+    Mix.shell().info("""
+
+    Warning: this package's Buildroot metadata declares target dependencies
+    that aren't packaged in this workspace yet:
+
+    #{list}
+
+    Some may be provided by the base Nerves system (e.g. `ncurses`,
+    `openssl`); others will need their own NBPR package before this one
+    will build. For each missing dep that the base system doesn't ship:
+
+        mix nbpr.new <dep>
+
+    Then add `nbpr_dep(:nbpr_<dep>, "~> x.y")` to this package's deps/0.
+    """)
   end
 
   defp lookup_metadata(name, br_package_name, opts, workspace) do
@@ -256,14 +331,23 @@ defmodule Mix.Tasks.Nbpr.New do
       File.dir?(Path.join(path, "nbpr"))
   end
 
-  defp build_files(short, package, module, project_module, br_package_name, metadata, github_repo) do
+  defp build_files(
+         short,
+         package,
+         module,
+         project_module,
+         br_package_name,
+         metadata,
+         github_repo,
+         resolved_deps
+       ) do
     %{
       ".formatter.exs" => formatter_exs(),
       ".gitignore" => gitignore(),
       "README.md" => readme_md(short, package, br_package_name, metadata, github_repo),
-      "mix.exs" => mix_exs(package, project_module, br_package_name, metadata, github_repo),
-      "lib/nbpr/#{short}.ex" =>
-        package_module_ex(module, br_package_name, metadata, github_repo),
+      "mix.exs" =>
+        mix_exs(package, project_module, br_package_name, metadata, github_repo, resolved_deps),
+      "lib/nbpr/#{short}.ex" => package_module_ex(module, br_package_name, metadata, github_repo),
       "test/test_helper.exs" => "ExUnit.start()\n",
       "test/nbpr/#{short}_test.exs" => test_ex(module, br_package_name, metadata, github_repo)
     }
@@ -369,7 +453,8 @@ defmodule Mix.Tasks.Nbpr.New do
 
     description = pkg.description || "Buildroot package `#{br_package_name}`"
 
-    tagline = "\n> #{description}\n\n#{upstream} packaged for Nerves. Tracks the upstream Buildroot `#{br_package_name}` package — this release wraps **#{pkg.version}**.\n"
+    tagline =
+      "\n> #{description}\n\n#{upstream} packaged for Nerves. Tracks the upstream Buildroot `#{br_package_name}` package — this release wraps **#{pkg.version}**.\n"
 
     {tagline, "", hex_requirement(pkg.version)}
   end
@@ -385,7 +470,7 @@ defmodule Mix.Tasks.Nbpr.New do
     end
   end
 
-  defp mix_exs(package, project_module, br_package_name, metadata, github_repo) do
+  defp mix_exs(package, project_module, br_package_name, metadata, github_repo, resolved_deps) do
     {version, description, links_block, licences} =
       mix_metadata_fragments(br_package_name, metadata, github_repo)
 
@@ -416,21 +501,38 @@ defmodule Mix.Tasks.Nbpr.New do
       end
 
       defp deps do
-        [nbpr_dep()]
+        [
+          #{deps_list_body(resolved_deps)}
+        ]
       end
 
-      # Path dep for local dev (sibling `:nbpr/` in the workspace); Hex
-      # requirement against the `nbpr` organisation when publishing. Hex
-      # publish forbids path deps, so we switch the spec only when the
-      # workflow asks for it.
-      defp nbpr_dep do
+      # Path dep for local dev (sibling in the workspace); Hex requirement
+      # against the `nbpr` organisation when publishing. Hex publish forbids
+      # path deps, so we switch the spec only when the workflow asks for it.
+      # `:nbpr` lives one level above `packages/`; `:nbpr_*` siblings are in
+      # the same directory.
+      defp nbpr_dep(name, requirement) do
         case System.get_env("NBPR_RELEASE") do
-          "1" -> {:nbpr, "~> 0.1", organization: "nbpr"}
-          _ -> {:nbpr, path: "../../nbpr"}
+          "1" -> {name, requirement, organization: "nbpr"}
+          _ -> {name, path: nbpr_dep_path(name)}
         end
       end
+
+      defp nbpr_dep_path(:nbpr), do: "../../nbpr"
+      defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
     end
     """
+  end
+
+  defp deps_list_body(resolved_deps) do
+    base = [~s|nbpr_dep(:nbpr, "~> 0.1")|]
+
+    sibling_lines =
+      Enum.map(resolved_deps, fn {nbpr_name, requirement} ->
+        ~s|nbpr_dep(:#{nbpr_name}, "#{requirement}")|
+      end)
+
+    Enum.join(base ++ sibling_lines, ",\n      ")
   end
 
   defp mix_metadata_fragments(br_package_name, nil, github_repo) do
@@ -439,9 +541,7 @@ defmodule Mix.Tasks.Nbpr.New do
       "GitHub" => "https://github.com/#{github_repo}"
     }
 
-    {"0.1.0",
-     "TODO: short description for nbpr_#{br_package_name}",
-     inspect(links),
+    {"0.1.0", "TODO: short description for nbpr_#{br_package_name}", inspect(links),
      ["TODO-LICENSE"]}
   end
 

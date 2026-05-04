@@ -16,19 +16,48 @@ defmodule NBPR.Buildroot.Package do
 
   | Field         | Source                                                  |
   | ------------- | ------------------------------------------------------- |
-  | `version`     | `<NAME>_VERSION` in `<name>.mk`                         |
-  | `licences`    | `<NAME>_LICENSE` in `<name>.mk`, comma-split, trimmed   |
-  | `homepage`    | First `https?://` URL in `Config.in` help block, else `<NAME>_SITE` |
-  | `description` | First sentence of the `Config.in` help block, capitalised |
-  | `title`       | The `bool "..."` label in `Config.in`                   |
-  | `help`        | Raw help block (multi-paragraph)                        |
+  | `version`      | `<NAME>_VERSION` in `<name>.mk`                          |
+  | `licences`     | `<NAME>_LICENSE` in `<name>.mk`, comma-split, trimmed    |
+  | `homepage`     | First `https?://` URL in `Config.in` help block, else `<NAME>_SITE` |
+  | `description`  | First sentence of the `Config.in` help block, capitalised |
+  | `title`        | The `bool "..."` label in `Config.in`                    |
+  | `help`         | Raw help block (multi-paragraph)                         |
+  | `dependencies` | Target-side BR deps: `<NAME>_DEPENDENCIES` ∪ `select BR2_PACKAGE_*` |
 
   Variable substitution (e.g. `$(<NAME>_VERSION)` references) is *not*
   resolved — this reader takes literal RHS values. Adequate for the common
   case; conditional definitions and computed sites fall back to `nil`.
+
+  ## Dependency extraction
+
+  `dependencies` lists BR package directory names this package needs at
+  target-build time. It's the union of:
+
+  - The first literal `<NAME>_DEPENDENCIES = ...` assignment in `<name>.mk`.
+    Conditional `_DEPENDENCIES += foo` blocks (gated by `ifeq`/kconfig) are
+    deliberately ignored — they depend on user kconfig choices, not on
+    intrinsic package wiring, and we have no way to evaluate them
+    statically.
+  - Every `select BR2_PACKAGE_<X>` line in `Config.in`, lowercased.
+
+  Filtered out:
+
+  - `host-*` deps (build-host tools, never on the target rootfs).
+  - `$(...)` make-variable references (can't be resolved without a full BR
+    config evaluation; e.g. `$(TARGET_NLS_DEPENDENCIES)`).
+  - Duplicates across the two sources.
   """
 
-  defstruct [:name, :version, :licences, :homepage, :description, :title, :help]
+  defstruct [
+    :name,
+    :version,
+    :licences,
+    :homepage,
+    :description,
+    :title,
+    :help,
+    dependencies: []
+  ]
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -37,7 +66,8 @@ defmodule NBPR.Buildroot.Package do
           homepage: String.t() | nil,
           description: String.t() | nil,
           title: String.t() | nil,
-          help: String.t() | nil
+          help: String.t() | nil,
+          dependencies: [String.t()]
         }
 
   @doc """
@@ -77,10 +107,16 @@ defmodule NBPR.Buildroot.Package do
          {:ok, licence_str} <- extract_var(mk_content, var_prefix, "LICENSE") do
       site = mk_content |> extract_var(var_prefix, "SITE") |> ok_value()
 
-      {title, help} =
+      config_in =
         case File.read(Path.join(pkg_dir, "Config.in")) do
-          {:ok, content} -> parse_config_in(content, var_prefix)
-          _ -> {nil, nil}
+          {:ok, content} -> content
+          _ -> nil
+        end
+
+      {title, help} =
+        case config_in do
+          nil -> {nil, nil}
+          content -> parse_config_in(content, var_prefix)
         end
 
       {:ok,
@@ -91,10 +127,40 @@ defmodule NBPR.Buildroot.Package do
          homepage: extract_homepage(help) || site,
          description: derive_description(help),
          title: title,
-         help: help
+         help: help,
+         dependencies: extract_dependencies(mk_content, config_in, var_prefix)
        }}
     end
   end
+
+  defp extract_dependencies(mk_content, config_in, var_prefix) do
+    mk_deps = extract_mk_dependencies(mk_content, var_prefix)
+    select_deps = extract_config_selects(config_in)
+
+    (mk_deps ++ select_deps)
+    |> Enum.reject(&host_dep?/1)
+    |> Enum.reject(&make_var_ref?/1)
+    |> Enum.uniq()
+  end
+
+  defp extract_mk_dependencies(content, prefix) do
+    case Regex.run(~r/^#{prefix}_DEPENDENCIES\s*=\s*(.*)$/m, content) do
+      [_, line] -> String.split(line, ~r/\s+/, trim: true)
+      _ -> []
+    end
+  end
+
+  defp extract_config_selects(nil), do: []
+
+  defp extract_config_selects(content) do
+    ~r/^\s*select\s+BR2_PACKAGE_([A-Z0-9_]+)/m
+    |> Regex.scan(content)
+    |> Enum.map(fn [_, kconfig] -> String.downcase(kconfig) end)
+  end
+
+  defp host_dep?(name), do: String.starts_with?(name, "host-")
+
+  defp make_var_ref?(name), do: String.contains?(name, "$")
 
   defp var_prefix(name), do: name |> String.upcase() |> String.replace("-", "_")
 
