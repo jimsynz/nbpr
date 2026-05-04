@@ -24,9 +24,30 @@ upstream Buildroot releases automatically.
 
 ## Using NBPR in your Nerves app
 
-The `:nbpr` library itself lives on public hex.pm. The binary packages
-(`:nbpr_*`) live in the `nbpr` Hex organisation; authenticate once per
-machine with the org's public read key:
+The fastest path is `mix igniter.install`, which adds the `:nbpr` library
+to your deps, merges the `firmware:` alias for you, and authenticates
+your local Hex client to the `nbpr` organisation:
+
+    mix igniter.install nbpr
+
+Then declare the binary packages you need in `mix.exs` and run
+`mix deps.get`:
+
+```elixir
+defp deps do
+  [
+    # ...
+    {:nbpr, "~> 0.2"},
+    {:nbpr_jq, "~> 1.0", organization: "nbpr"},
+    {:nbpr_dnsmasq, "~> 2.0", organization: "nbpr"}
+  ]
+end
+```
+
+### Manual setup
+
+If you'd rather not use Igniter, do the same three things by hand.
+Authenticate once per machine with the `nbpr` org's public read key:
 
     mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
 
@@ -34,24 +55,14 @@ The key is read-only and intentionally public — it gates package fetches
 without gating discoverability. Don't use it for publishing (no publish
 scope).
 
-In your app's `mix.exs`, declare the library plus the packages you need
-and alias `mix firmware` to run `mix nbpr.fetch` first:
+Then in your app's `mix.exs`:
 
 ```elixir
 def project do
   [
     # ...
-    aliases: ["firmware": ["nbpr.fetch", "firmware"]],
+    aliases: [firmware: ["nbpr.fetch", "firmware"]],
     deps: deps()
-  ]
-end
-
-defp deps do
-  [
-    # ...
-    {:nbpr, "~> 0.2"},
-    {:nbpr_jq, "~> 1.0", organization: "nbpr"},
-    {:nbpr_dnsmasq, "~> 2.0", organization: "nbpr"}
   ]
 end
 ```

@@ -30,6 +30,10 @@ defmodule NBPR.MixProject do
     [
       {:nimble_options, "~> 1.1"},
       {:muontrap, "~> 1.0"},
+      # Optional — only required when a consumer runs `mix igniter.install
+      # nbpr` to bootstrap their project. Listed here so `Mix.Tasks.Nbpr.Install`
+      # compiles in this library's own build.
+      {:igniter, "~> 0.7", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
@@ -52,6 +56,7 @@ defmodule NBPR.MixProject do
           Mix.Tasks.Nbpr.Build,
           Mix.Tasks.Nbpr.Fetch,
           Mix.Tasks.Nbpr.Inspect,
+          Mix.Tasks.Nbpr.Install,
           Mix.Tasks.Nbpr.Matrix,
           Mix.Tasks.Nbpr.New,
           Mix.Tasks.Nbpr.Pack,
