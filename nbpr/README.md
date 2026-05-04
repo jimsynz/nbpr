@@ -52,10 +52,8 @@ generated `@moduledoc` for specifics.
 
 ## Repo layout
 
-The full source — including the four currently published packages
-(`:nbpr_jq`, `:nbpr_dnsmasq`, `:nbpr_htop`, `:nbpr_iperf3`) and the
-`nbpr_demo` reference firmware — lives at
-<https://github.com/jimsynz/nbpr>.
+The full source — including all currently published packages — lives
+at <https://github.com/jimsynz/nbpr>.
 
 ## Licence
 

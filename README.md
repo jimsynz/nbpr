@@ -15,9 +15,12 @@ tree.
 | [`:nbpr_htop`](https://hex.pm/packages/nbpr/nbpr_htop) | 3.4.1 | Interactive process viewer |
 | [`:nbpr_iperf3`](https://hex.pm/packages/nbpr/nbpr_iperf3) | 3.19.1 | Network throughput measurement tool |
 | [`:nbpr_jq`](https://hex.pm/packages/nbpr/nbpr_jq) | 1.8.1 | Lightweight JSON processor |
+| [`:nbpr_libpcap`](https://hex.pm/packages/nbpr/nbpr_libpcap) | 1.10.5 | System-independent packet-capture library |
+| [`:nbpr_strace`](https://hex.pm/packages/nbpr/nbpr_strace) | 6.18.0 | System-call tracer |
+| [`:nbpr_tcpdump`](https://hex.pm/packages/nbpr/nbpr_tcpdump) | 4.99.5 | Network monitoring and packet-capture CLI |
 
 Each version mirrors the upstream Buildroot package version. Bumps follow
-upstream Buildroot releases automatically — see [PLAN.md](PLAN.md).
+upstream Buildroot releases automatically.
 
 ## Using NBPR in your Nerves app
 
@@ -85,13 +88,6 @@ The macro handles option validation (NimbleOptions schema), argv assembly,
 binary path resolution (`:code.priv_dir/1`), and MuonTrap supervision. See
 each package's README and the generated module's `@moduledoc` for specifics.
 
-## Reference firmware
-
-A minimal end-to-end example lives at
-[`jimsynz/nbpr_demo`](https://github.com/jimsynz/nbpr_demo) (rpi4, consumes
-`:nbpr_jq` and `:nbpr_dnsmasq`, supervises the dnsmasq daemon, ships a
-config file via `rootfs_overlay/`). Clone, `mix deps.get`, `mix firmware`.
-
 ## Adding a new package
 
 This repo is also where new `:nbpr_*` packages get authored. Scaffold one
@@ -118,9 +114,11 @@ nbpr/
 │   ├── nbpr_dnsmasq/
 │   ├── nbpr_htop/
 │   ├── nbpr_iperf3/
-│   └── nbpr_jq/
+│   ├── nbpr_jq/
+│   ├── nbpr_libpcap/
+│   ├── nbpr_strace/
+│   └── nbpr_tcpdump/
 ├── mix.exs                   # build harness (pulls in :nerves and target systems)
-├── PLAN.md                   # status and outstanding work
 └── CLAUDE.md                 # scope, conventions, design decisions
 ```
 

@@ -4,8 +4,6 @@
 
 NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. Users declare `{:nbpr_jq, "~> 1.0", organization: "nbpr"}` in their app's `mix.exs` and the binary lands in their rootfs at firmware-build time. Packages with daemons additionally generate MuonTrap-supervised GenServer modules the user adds to their supervision tree. Packages bearing out-of-tree kernel modules generate an `Application` that auto-loads them at boot via `modprobe`.
 
-See `PLAN.md` for current status, outstanding work, and Hex publish bootstrap.
-
 ## Scope
 
 In scope:
@@ -70,5 +68,4 @@ When investigating Nerves internals, prefer reading these directly over guessing
 
 ## Working in this repo
 
-- When picking up work, check `PLAN.md` for current status and outstanding items.
 - Frank Hunleth and James Harton are the primary design collaborators on this — significant design changes warrant a chat, not a unilateral spike.
