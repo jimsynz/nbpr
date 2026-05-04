@@ -76,6 +76,19 @@ jobs:
         run: |
           mix hex.publish package --yes ${{ steps.route.outputs.publish_args }}
 
+      # Public `:nbpr` is the only package whose docs we publish to
+      # hexdocs.pm. The `:nbpr_*` binary packages live in the private `nbpr`
+      # org, where hexdocs hosting is org-scoped and not how consumers
+      # discover them — they're documented via per-package READMEs and the
+      # generated module docs reachable from the public `:nbpr` docs.
+      - name: Publish docs to hexdocs.pm
+        if: steps.route.outputs.package == 'nbpr'
+        working-directory: ${{ steps.route.outputs.dir }}
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          NBPR_RELEASE: "1"
+        run: mix hex.publish docs --yes
+
       - name: Summary
         run: |
           echo "Published ${{ steps.route.outputs.package }} from ${{ steps.route.outputs.dir }}"
