@@ -30,7 +30,7 @@ defmodule NBPR.Buildroot.Builder do
   with `inputs.build_opts` applied. Writes the tarball into `output_dir` and
   returns its absolute path.
 
-  `inputs` is the standard `NBPR.Artifact.build_inputs/0` map (the same one
+  `inputs` is the standard `t:NBPR.Artifact.build_inputs/0` map (the same one
   used for cache-key/manifest computation in the fetch path).
   """
   @spec build!(NBPR.Package.t(), NBPR.Artifact.build_inputs(), Path.t()) :: Path.t()

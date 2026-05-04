@@ -3,7 +3,7 @@ defmodule NBPR.Buildroot.Harvest do
   Locates per-package Buildroot output and packages it as an
   `NBPR.Pack.sources()` map for hand-off to `NBPR.Pack.pack!/3`.
 
-  After `NBPR.Buildroot.Build.build!/3` runs `make <pkg>-rebuild` with
+  After `NBPR.Buildroot.Builder.build!/3` runs `make <pkg>-rebuild` with
   `BR2_PER_PACKAGE_DIRECTORIES=y`, the per-package output is at:
 
       <output_dir>/per-package/<br_package>/
