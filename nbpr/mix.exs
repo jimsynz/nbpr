@@ -32,7 +32,7 @@ defmodule NBPR.MixProject do
   defp package do
     [
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/nerves-project/nbpr"}
+      links: %{"GitHub" => "https://github.com/jimsynz/nbpr"}
     ]
   end
 end

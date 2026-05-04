@@ -16,7 +16,7 @@ defmodule Nbpr.Dnsmasq.MixProject do
       description: "Lightweight DHCP/DNS server (`dnsmasq`) packaged for Nerves",
       package: [
         organization: "nbpr",
-        licenses: ["GPL-2.0-only"],
+        licenses: ["GPL-2.0-or-later"],
         links: %{
           "dnsmasq" => "https://thekelleys.org.uk/dnsmasq/doc.html",
           "GitHub" => "https://github.com/jimsynz/nbpr"

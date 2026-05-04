@@ -260,7 +260,7 @@ defmodule Mix.Tasks.Nbpr.New do
     %{
       ".formatter.exs" => formatter_exs(),
       ".gitignore" => gitignore(),
-      "README.md" => readme_md(short, package, module, github_repo),
+      "README.md" => readme_md(short, package, br_package_name, metadata, github_repo),
       "mix.exs" => mix_exs(package, project_module, br_package_name, metadata, github_repo),
       "lib/nbpr/#{short}.ex" =>
         package_module_ex(module, br_package_name, metadata, github_repo),
@@ -325,17 +325,26 @@ defmodule Mix.Tasks.Nbpr.New do
     """
   end
 
-  defp readme_md(short, package, module, github_repo) do
+  defp readme_md(_short, package, br_package_name, metadata, github_repo) do
+    {tagline, upstream_line, hex_requirement} =
+      readme_fragments(br_package_name, metadata, package)
+
     """
     # #{package}
-
-    `#{short}` packaged for Nerves via [NBPR](https://github.com/#{github_repo}).
+    #{tagline}#{upstream_line}
 
     ## Usage
 
     In your Nerves project's `mix.exs`:
 
-        {:#{package}, "~> 0.1", repo: "nbpr"}
+        {:#{package}, "#{hex_requirement}", repo: "nbpr"}
+
+    Run `mix deps.get`, then `mix firmware` — the binary lands at
+    `<release>/lib/#{package}-<vsn>/priv/usr/...` and `NBPR.Application`
+    adds it to `PATH` and `LD_LIBRARY_PATH` at boot. See the
+    [NBPR README](https://github.com/#{github_repo}) for the full
+    integration flow (including supervision-tree wiring for
+    daemon-bearing packages).
 
     ## Configuration
 
@@ -344,13 +353,36 @@ defmodule Mix.Tasks.Nbpr.New do
         config :#{package}, build_opts: [
           # ...
         ]
-
-    ## Note for kernel-module packages
-
-    If `#{module}` declares a non-empty `kernel_modules:` list, the using
-    project must also include `mod: {#{module}.Application, []}` in its
-    `application/0` callback so the Application is started at boot.
     """
+  end
+
+  defp readme_fragments(br_package_name, nil, _package) do
+    {"\n`#{br_package_name}` packaged for Nerves.\n", "", "~> 0.1"}
+  end
+
+  defp readme_fragments(br_package_name, %BrPackage{} = pkg, _package) do
+    upstream =
+      case pkg.homepage do
+        nil -> "`#{br_package_name}`"
+        url -> "[`#{br_package_name}`](#{url})"
+      end
+
+    description = pkg.description || "Buildroot package `#{br_package_name}`"
+
+    tagline = "\n> #{description}\n\n#{upstream} packaged for Nerves. Tracks the upstream Buildroot `#{br_package_name}` package — this release wraps **#{pkg.version}**.\n"
+
+    {tagline, "", hex_requirement(pkg.version)}
+  end
+
+  # Hex `~> X.Y` matches `>= X.Y, < X+1.0`, so we advertise the major
+  # series the published version belongs to. For `0.x` we widen to
+  # `~> 0.1` since pre-1.0 has weaker compatibility guarantees.
+  defp hex_requirement(version) do
+    case String.split(version, ".") do
+      ["0", _ | _] -> "~> 0.1"
+      [major, _ | _] -> "~> #{major}.0"
+      _ -> "~> 0.1"
+    end
   end
 
   defp mix_exs(package, project_module, br_package_name, metadata, github_repo) do

@@ -189,6 +189,19 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert lib =~ ~s|homepage: "https://example.com/fixturepkg"|
     end
 
+    test "bakes BR-derived data into the README", %{tmp: tmp} do
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["fixturepkg"]) end)
+      end)
+
+      readme = File.read!(Path.join(tmp, "packages/nbpr_fixturepkg/README.md"))
+
+      assert readme =~ "> Fixturepkg does the thing well."
+      assert readme =~ "[`fixturepkg`](https://example.com/fixturepkg)"
+      assert readme =~ "wraps **1.2.3**"
+      assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", repo: "nbpr"}|
+    end
+
     test "raises when BR licence is non-SPDX without --licenses override", %{tmp: tmp} do
       seed_br_cache_pkg!(tmp, "borked", "GPL-2.0+")
 
