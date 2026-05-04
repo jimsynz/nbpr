@@ -51,8 +51,37 @@ jobs:
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
-          PLAN=$(mix nbpr.releasable --json --root "$GITHUB_WORKSPACE")
-          echo "Plan:"
+          mix compile
+
+          # Capture stdout + stderr separately so we can tell which stream
+          # the task is writing to. The previous version captured only
+          # stdout via $() and ended up with an empty PLAN — visibility
+          # into stderr will show whether the JSON went to the wrong stream
+          # or the task raised before printing.
+          set +e
+          mix nbpr.releasable --json --root "$GITHUB_WORKSPACE" \
+            > /tmp/plan.stdout 2> /tmp/plan.stderr
+          mix_exit=$?
+          set -e
+
+          echo "mix exit code: $mix_exit"
+          echo "----- stdout -----"
+          cat /tmp/plan.stdout
+          echo "----- stderr -----"
+          cat /tmp/plan.stderr
+          echo "------------------"
+
+          if [ "$mix_exit" -ne 0 ]; then
+            echo "::error::mix nbpr.releasable failed (exit $mix_exit)"
+            exit 1
+          fi
+
+          PLAN=$(cat /tmp/plan.stdout)
+          if [ -z "$PLAN" ]; then
+            echo "::error::mix nbpr.releasable produced no stdout"
+            exit 1
+          fi
+
           echo "$PLAN" | python3 -m json.tool
           echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
 
