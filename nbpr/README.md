@@ -27,19 +27,20 @@ the `nbpr` Hex organisation.
 
 ## Consumer flow
 
-In your Nerves app's `mix.exs`:
+The `:nbpr` library and all `:nbpr_*` packages live in the `nbpr` Hex
+organisation, so first-time consumers register a read-key:
 
-    {:nbpr_jq, "~> 1.0", repo: "nbpr"}
+    mix hex.organization auth nbpr --key <read-key>
 
-then alias `mix firmware`:
+Then in your Nerves app's `mix.exs`:
+
+    {:nbpr_jq, "~> 1.0", organization: "nbpr"}
+
+and alias `mix firmware`:
 
     aliases: ["firmware": ["nbpr.fetch", "firmware"]]
 
-…and run `mix deps.get` + `mix firmware` as usual. The first time, you
-need to register the `nbpr` Hex repo:
-
-    mix hex.repo add nbpr https://repo.hex.pm/repos/nbpr \
-      --auth-key <hex-org-key>
+`mix deps.get` + `mix firmware` work as normal from there.
 
 For daemon-bearing packages (e.g. `:nbpr_dnsmasq`), add the generated
 daemon module to your supervision tree — see each package's README and

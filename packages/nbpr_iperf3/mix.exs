@@ -24,18 +24,17 @@ defmodule Nbpr.Iperf3.MixProject do
   end
 
   defp deps do
-    [
-      {:nbpr, nbpr_dep()}
-    ]
+    [nbpr_dep()]
   end
 
   # Path dep for local dev (sibling `:nbpr/` in the workspace); Hex
-  # requirement when the env is set for publishing. Hex publish forbids
-  # path deps, so we switch the spec only when the workflow asks for it.
+  # requirement against the `nbpr` organisation when publishing. Hex
+  # publish forbids path deps, so we switch the spec only when the
+  # workflow asks for it.
   defp nbpr_dep do
     case System.get_env("NBPR_RELEASE") do
-      "1" -> "~> 0.1"
-      _ -> [path: "../../nbpr"]
+      "1" -> {:nbpr, "~> 0.1", organization: "nbpr"}
+      _ -> {:nbpr, path: "../../nbpr"}
     end
   end
 end

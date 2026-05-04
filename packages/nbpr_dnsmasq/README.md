@@ -10,7 +10,7 @@ wraps **2.91**.
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_dnsmasq, "~> 2.0", repo: "nbpr"}
+    {:nbpr_dnsmasq, "~> 2.0", organization: "nbpr"}
 
 Run `mix deps.get`, then `mix firmware` — the `dnsmasq` binary lands
 at `<release>/lib/nbpr_dnsmasq-<vsn>/priv/usr/sbin/dnsmasq` and

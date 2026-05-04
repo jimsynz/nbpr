@@ -9,7 +9,7 @@ Buildroot `htop` package — this release wraps **3.4.1**.
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_htop, "~> 3.0", repo: "nbpr"}
+    {:nbpr_htop, "~> 3.0", organization: "nbpr"}
 
 Run `mix deps.get`, then `mix firmware` — the `htop` binary lands at
 `<release>/lib/nbpr_htop-<vsn>/priv/usr/bin/htop` and `NBPR.Application`

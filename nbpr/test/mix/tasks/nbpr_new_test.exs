@@ -53,7 +53,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       contents = File.read!(Path.join(tmp, "packages/nbpr_containerd/mix.exs"))
 
       assert contents =~ "app: :nbpr_containerd"
-      assert contents =~ "{:nbpr, nbpr_dep()}"
+      assert contents =~ "[nbpr_dep()]"
+      assert contents =~ ~s|organization: "nbpr"|
       assert contents =~ "NBPR_RELEASE"
     end
   end
@@ -199,7 +200,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert readme =~ "> Fixturepkg does the thing well."
       assert readme =~ "[`fixturepkg`](https://example.com/fixturepkg)"
       assert readme =~ "wraps **1.2.3**"
-      assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", repo: "nbpr"}|
+      assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", organization: "nbpr"}|
     end
 
     test "raises when BR licence is non-SPDX without --licenses override", %{tmp: tmp} do

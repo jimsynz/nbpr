@@ -10,7 +10,7 @@ Tracks the upstream Buildroot `iperf3` package — this release wraps
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_iperf3, "~> 3.0", repo: "nbpr"}
+    {:nbpr_iperf3, "~> 3.0", organization: "nbpr"}
 
 Run `mix deps.get`, then `mix firmware` — the `iperf3` binary lands at
 `<release>/lib/nbpr_iperf3-<vsn>/priv/usr/bin/iperf3` and

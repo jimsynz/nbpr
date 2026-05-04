@@ -9,7 +9,7 @@ upstream Buildroot `jq` package — this release wraps **1.8.1**.
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_jq, "~> 1.0", repo: "nbpr"}
+    {:nbpr_jq, "~> 1.0", organization: "nbpr"}
 
 Run `mix deps.get`, then `mix firmware` — the `jq` binary lands at
 `<release>/lib/nbpr_jq-<vsn>/priv/usr/bin/jq` and `NBPR.Application`
