@@ -14,8 +14,19 @@ defmodule NBPR.MixProject do
       description: "Nerves Binary Package Repository — library underpinning :nbpr_* packages",
       package: package(),
       docs: docs(),
+      aliases: aliases(),
       name: "NBPR",
       source_url: @source_url
+    ]
+  end
+
+  # `mix docs` regenerates docs/reference/catalogue.md from the workspace's
+  # `packages/` first, so the published hexdocs always has the current
+  # catalogue. The catalogue file itself is gitignored — it's a build
+  # artefact.
+  defp aliases do
+    [
+      docs: ["nbpr.catalogue", "docs"]
     ]
   end
 

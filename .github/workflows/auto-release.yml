@@ -132,6 +132,22 @@ jobs:
             echo "::endgroup::"
           done < /tmp/plan.tsv
 
+      # All releases in this cycle are confirmed on Hex by the time we get
+      # here, so the catalogue page (which globs `packages/` at docs-build
+      # time) will accurately reflect what consumers can resolve. Re-publish
+      # `:nbpr`'s hexdocs so the catalogue picks up any newly-released
+      # `:nbpr_*` packages. Hex allows docs-only republishes for an existing
+      # package version, so we don't bump `:nbpr` itself.
+      - name: Refresh :nbpr hexdocs (one publish per release cycle)
+        if: ${{ steps.plan.outputs.plan != '[]' }}
+        working-directory: nbpr
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          mix deps.get
+          mix docs
+          mix hex.publish docs --yes
+
       - name: Summary
         if: always()
         run: |
