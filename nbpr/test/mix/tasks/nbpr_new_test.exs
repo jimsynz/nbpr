@@ -53,7 +53,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       contents = File.read!(Path.join(tmp, "packages/nbpr_containerd/mix.exs"))
 
       assert contents =~ "app: :nbpr_containerd"
-      assert contents =~ ~s|nbpr_dep(:nbpr, "~> 0.1")|
+      assert contents =~ ~s|nbpr_dep(:nbpr, "~> 0.2")|
+      assert contents =~ "defp nbpr_dep(:nbpr = name, requirement)"
       assert contents =~ "defp nbpr_dep(name, requirement)"
       assert contents =~ ~s|organization: "nbpr"|
       assert contents =~ "NBPR_RELEASE"
@@ -261,7 +262,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
 
       mix_exs = File.read!(Path.join(tmp, "packages/nbpr_needslib/mix.exs"))
 
-      assert mix_exs =~ ~s|nbpr_dep(:nbpr, "~> 0.1")|
+      assert mix_exs =~ ~s|nbpr_dep(:nbpr, "~> 0.2")|
       assert mix_exs =~ ~s|nbpr_dep(:nbpr_siblingpkg, "~> 1.0")|
     end
 

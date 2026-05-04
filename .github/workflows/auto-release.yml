@@ -94,17 +94,24 @@ jobs:
             gh workflow run release.yml -f tag="$tag"
             echo "Dispatched release.yml for $tag"
 
-            # Poll Hex org API. release.yml needs ~1-2 min for the
-            # publish; the rest is propagation slack. Hex is the source of
-            # truth — a successful workflow run plus a stale Hex response
-            # would still break the next package's `mix deps.get`.
+            # Poll Hex API. `:nbpr` lives on public hex (no auth);
+            # `:nbpr_*` packages live in the `nbpr` org (auth-required).
+            # Both have the same response shape.
+            if [ "$name" = "nbpr" ]; then
+              hex_url="https://hex.pm/api/packages/nbpr"
+              hex_auth=()
+            else
+              hex_url="https://hex.pm/api/repos/nbpr/packages/$name"
+              hex_auth=(-H "authorization: $NBPR_READ_KEY")
+            fi
+
             deadline=$(( $(date +%s) + 900 ))
             hex_version=""
             while [ "$(date +%s)" -lt "$deadline" ]; do
               hex_version=$(curl -sS \
-                -H "authorization: $NBPR_READ_KEY" \
+                "${hex_auth[@]}" \
                 -H "accept: application/json" \
-                "https://hex.pm/api/repos/nbpr/packages/$name" \
+                "$hex_url" \
                 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(\"latest_stable_version\") or d.get(\"latest_version\") or \"\")" \
                 2>/dev/null || true)
 

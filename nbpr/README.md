@@ -27,8 +27,9 @@ the `nbpr` Hex organisation.
 
 ## Consumer flow
 
-The `:nbpr` library and all `:nbpr_*` packages live in the `nbpr` Hex
-organisation. Authenticate once per machine with the public read key:
+`:nbpr` lives on public hex.pm. The `:nbpr_*` binary packages live in
+the `nbpr` Hex organisation; authenticate once per machine with the
+public read key:
 
     mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
 
@@ -38,7 +39,12 @@ fetches without gating discoverability. Don't use it for publishing
 
 Then in your Nerves app's `mix.exs`:
 
-    {:nbpr_jq, "~> 1.0", organization: "nbpr"}
+    defp deps do
+      [
+        {:nbpr, "~> 0.2"},
+        {:nbpr_jq, "~> 1.0", organization: "nbpr"}
+      ]
+    end
 
 and alias `mix firmware`:
 

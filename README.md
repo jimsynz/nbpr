@@ -24,7 +24,9 @@ upstream Buildroot releases automatically.
 
 ## Using NBPR in your Nerves app
 
-Authenticate once per machine with the `nbpr` org's public read key:
+The `:nbpr` library itself lives on public hex.pm. The binary packages
+(`:nbpr_*`) live in the `nbpr` Hex organisation; authenticate once per
+machine with the org's public read key:
 
     mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
 
@@ -32,8 +34,8 @@ The key is read-only and intentionally public — it gates package fetches
 without gating discoverability. Don't use it for publishing (no publish
 scope).
 
-In your app's `mix.exs`, declare the packages you need and alias
-`mix firmware` to run `mix nbpr.fetch` first:
+In your app's `mix.exs`, declare the library plus the packages you need
+and alias `mix firmware` to run `mix nbpr.fetch` first:
 
 ```elixir
 def project do
@@ -47,6 +49,7 @@ end
 defp deps do
   [
     # ...
+    {:nbpr, "~> 0.2"},
     {:nbpr_jq, "~> 1.0", organization: "nbpr"},
     {:nbpr_dnsmasq, "~> 2.0", organization: "nbpr"}
   ]

@@ -28,15 +28,21 @@ defmodule Nbpr.Jq.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.1")
+      nbpr_dep(:nbpr, "~> 0.2")
     ]
   end
 
   # Path dep for local dev (sibling in the workspace); Hex requirement
-  # against the `nbpr` organisation when publishing. Hex publish forbids
-  # path deps, so we switch the spec only when the workflow asks for it.
-  # `:nbpr` lives one level above `packages/`; `:nbpr_*` siblings are in
-  # the same directory.
+  # when publishing. Hex publish forbids path deps, so we switch the spec
+  # only when the workflow asks for it. `:nbpr` itself lives on public
+  # hex.pm; `:nbpr_*` packages live in the `nbpr` Hex org.
+  defp nbpr_dep(:nbpr = name, requirement) do
+    case System.get_env("NBPR_RELEASE") do
+      "1" -> {name, requirement}
+      _ -> {name, path: nbpr_dep_path(name)}
+    end
+  end
+
   defp nbpr_dep(name, requirement) do
     case System.get_env("NBPR_RELEASE") do
       "1" -> {name, requirement, organization: "nbpr"}

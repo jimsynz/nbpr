@@ -38,7 +38,7 @@ jobs:
             nbpr)
               echo "package=$PKG" >> "$GITHUB_OUTPUT"
               echo "dir=nbpr" >> "$GITHUB_OUTPUT"
-              echo "publish_args=--organization nbpr" >> "$GITHUB_OUTPUT"
+              echo "publish_args=" >> "$GITHUB_OUTPUT"
               ;;
             nbpr_*)
               echo "package=$PKG" >> "$GITHUB_OUTPUT"

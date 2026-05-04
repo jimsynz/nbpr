@@ -225,9 +225,13 @@ defmodule Mix.Tasks.Nbpr.Releasable do
     end)
   end
 
-  # Hex's org API returns the package as JSON with a `releases` array; the
-  # latest stable lives at `latest_stable_version` (falling back to
-  # `latest_version` for pre-1.0 packages without a stable release).
+  # `:nbpr` itself lives on public hex.pm (no auth, no org path); `:nbpr_*`
+  # packages live in the `nbpr` org (auth-required, org path). The API
+  # response shape is the same for both.
+  defp fetch_hex_version("nbpr") do
+    do_fetch("https://hex.pm/api/packages/nbpr", [])
+  end
+
   defp fetch_hex_version(name) do
     key = System.get_env("NBPR_READ_KEY")
 
@@ -235,15 +239,21 @@ defmodule Mix.Tasks.Nbpr.Releasable do
       Mix.raise("NBPR_READ_KEY env var is required for Hex org lookups")
     end
 
-    url = String.to_charlist("https://hex.pm/api/repos/#{@hex_org}/packages/#{name}")
+    do_fetch(
+      "https://hex.pm/api/repos/#{@hex_org}/packages/#{name}",
+      [{~c"authorization", String.to_charlist(key)}]
+    )
+  end
 
-    headers = [
-      {~c"authorization", String.to_charlist(key)},
-      {~c"accept", ~c"application/json"},
-      {~c"user-agent", ~c"nbpr-releasable/1"}
-    ]
+  defp do_fetch(url, extra_headers) do
+    headers =
+      extra_headers ++
+        [
+          {~c"accept", ~c"application/json"},
+          {~c"user-agent", ~c"nbpr-releasable/1"}
+        ]
 
-    case :httpc.request(:get, {url, headers}, [], body_format: :binary) do
+    case :httpc.request(:get, {String.to_charlist(url), headers}, [], body_format: :binary) do
       {:ok, {{_, 200, _}, _, body}} ->
         case :json.decode(body) do
           %{"latest_stable_version" => v} when is_binary(v) -> {:ok, v}

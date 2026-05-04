@@ -1,7 +1,8 @@
 defmodule NBPR.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
+  @source_url "https://github.com/jimsynz/nbpr"
 
   def project do
     [
@@ -11,7 +12,10 @@ defmodule NBPR.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "Nerves Binary Package Repository — library underpinning :nbpr_* packages",
-      package: package()
+      package: package(),
+      docs: docs(),
+      name: "NBPR",
+      source_url: @source_url
     ]
   end
 
@@ -25,15 +29,36 @@ defmodule NBPR.MixProject do
   defp deps do
     [
       {:nimble_options, "~> 1.1"},
-      {:muontrap, "~> 1.0"}
+      {:muontrap, "~> 1.0"},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 
   defp package do
     [
-      organization: "nbpr",
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/jimsynz/nbpr"}
+      links: %{"GitHub" => @source_url}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"],
+      source_url: @source_url,
+      source_ref: "v#{@version}",
+      groups_for_modules: [
+        "Mix tasks": [
+          Mix.Tasks.Nbpr.Build,
+          Mix.Tasks.Nbpr.Fetch,
+          Mix.Tasks.Nbpr.Inspect,
+          Mix.Tasks.Nbpr.Matrix,
+          Mix.Tasks.Nbpr.New,
+          Mix.Tasks.Nbpr.Pack,
+          Mix.Tasks.Nbpr.Publish,
+          Mix.Tasks.Nbpr.Releasable
+        ]
+      ]
     ]
   end
 end

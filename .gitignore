@@ -8,3 +8,4 @@ cover/
 doc/
 .DS_Store
 .env*
+.claude/
