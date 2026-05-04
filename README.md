@@ -7,133 +7,48 @@ binary lands in your rootfs at firmware-build time. Daemon-bearing packages
 additionally generate MuonTrap-supervised modules you add to your supervision
 tree.
 
-## Catalogue
+## Quickstart
 
-| Package | Version | Description |
-| --- | --- | --- |
-| [`:nbpr_dnsmasq`](https://hex.pm/packages/nbpr/nbpr_dnsmasq) | 2.91.0 | Lightweight DHCP/DNS server (with daemon module) |
-| [`:nbpr_htop`](https://hex.pm/packages/nbpr/nbpr_htop) | 3.4.1 | Interactive process viewer |
-| [`:nbpr_iperf3`](https://hex.pm/packages/nbpr/nbpr_iperf3) | 3.19.1 | Network throughput measurement tool |
-| [`:nbpr_jq`](https://hex.pm/packages/nbpr/nbpr_jq) | 1.8.1 | Lightweight JSON processor |
-| [`:nbpr_libpcap`](https://hex.pm/packages/nbpr/nbpr_libpcap) | 1.10.5 | System-independent packet-capture library |
-| [`:nbpr_strace`](https://hex.pm/packages/nbpr/nbpr_strace) | 6.18.0 | System-call tracer |
-| [`:nbpr_tcpdump`](https://hex.pm/packages/nbpr/nbpr_tcpdump) | 4.99.5 | Network monitoring and packet-capture CLI |
-
-Each version mirrors the upstream Buildroot package version. Bumps follow
-upstream Buildroot releases automatically.
-
-## Using NBPR in your Nerves app
-
-The fastest path is `mix igniter.install`, which adds the `:nbpr` library
-to your deps, merges the `firmware:` alias for you, and authenticates
-your local Hex client to the `nbpr` organisation:
+In a Nerves project:
 
     mix igniter.install nbpr
 
-Then declare the binary packages you need in `mix.exs` and run
-`mix deps.get`:
+Then add the binary packages you need to `mix.exs` and run `mix firmware`
+as usual. The full consumer flow, including a step-by-step worked example,
+lives in the [Getting Started tutorial](https://hexdocs.pm/nbpr/getting-started.html).
 
-```elixir
-defp deps do
-  [
-    # ...
-    {:nbpr, "~> 0.2"},
-    {:nbpr_jq, "~> 1.0", organization: "nbpr"},
-    {:nbpr_dnsmasq, "~> 2.0", organization: "nbpr"}
-  ]
-end
-```
+## Documentation
 
-### Manual setup
+The doc site at [hexdocs.pm/nbpr](https://hexdocs.pm/nbpr) is organised by
+intent ([Diátaxis](https://diataxis.fr/)):
 
-If you'd rather not use Igniter, do the same three things by hand.
-Authenticate once per machine with the `nbpr` org's public read key:
+- **Tutorials** — learning-oriented walkthroughs.
+  [Getting started](https://hexdocs.pm/nbpr/getting-started.html) takes
+  you from a fresh Nerves project to a device with `jq` working.
+- **How-to guides** — task-oriented recipes. Currently:
+  [Add a Buildroot package to NBPR](https://hexdocs.pm/nbpr/add-a-buildroot-package.html).
+- **Reference** — the [catalogue](https://hexdocs.pm/nbpr/catalogue.html)
+  of available binary packages, plus moduledocs and Mix-task docs in the
+  API reference.
+- **Explanation** — [Why NBPR exists](https://hexdocs.pm/nbpr/why-nbpr.html)
+  and [How NBPR composes with Buildroot](https://hexdocs.pm/nbpr/packaging-model.html).
 
-    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
+## Contributing
 
-The key is read-only and intentionally public — it gates package fetches
-without gating discoverability. Don't use it for publishing (no publish
-scope).
-
-Then in your app's `mix.exs`:
-
-```elixir
-def project do
-  [
-    # ...
-    aliases: [firmware: ["nbpr.fetch", "firmware"]],
-    deps: deps()
-  ]
-end
-```
-
-Then build as usual:
-
-```sh
-export MIX_TARGET=rpi4
-mix deps.get
-mix firmware
-mix burn
-```
-
-`mix nbpr.fetch` walks your loaded apps for `:nbpr_*` packages, pulls each
-one's prebuilt artefact from GHCR (or source-builds via Buildroot when no
-prebuild exists for your target/system-version combo), and copies the
-binaries into the package's `priv/`. At boot, `NBPR.Application` adds them
-to `PATH` and `LD_LIBRARY_PATH`, so you can call them from anywhere in your
-app:
-
-```elixir
-{output, 0} = System.cmd("jq", [".name", "/srv/erlang/config.json"])
-```
-
-### Daemon-bearing packages
-
-Packages declaring daemons (e.g. `:nbpr_dnsmasq`) generate a nested module
-you add to your supervision tree:
-
-```elixir
-children = [
-  {NBPR.Dnsmasq.Dnsmasq, config_file: "/etc/dnsmasq.conf"}
-]
-```
-
-The macro handles option validation (NimbleOptions schema), argv assembly,
-binary path resolution (`:code.priv_dir/1`), and MuonTrap supervision. See
-each package's README and the generated module's `@moduledoc` for specifics.
-
-## Adding a new package
-
-This repo is also where new `:nbpr_*` packages get authored. Scaffold one
-with the generator:
-
-    MIX_TARGET=rpi4 mix deps.get        # so deps/nerves_system_br/ exists
-    mix nbpr.new <buildroot-package-name>
-
-`mix nbpr.new` reads the workspace's pinned Buildroot tree, validates the
-upstream package's licence(s) against SPDX, and bakes version, homepage,
-description, and starter test/README content directly into the scaffold.
-You finish by reviewing the generated `lib/nbpr/<name>.ex` and adding any
-`build_opts:` or `daemons:` declarations the package needs.
-
-PRs welcome. Tag-driven CI publishes new packages to the `nbpr` org on
-push.
+PRs welcome. The headline contributor task is "add a new Buildroot
+package to the catalogue" — see [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [How to add a Buildroot package](docs/howto/add-a-buildroot-package.md)
+guide.
 
 ## Workspace layout
 
 ```
 nbpr/
-├── nbpr/                     # the `:nbpr` library
-├── packages/
-│   ├── nbpr_dnsmasq/
-│   ├── nbpr_htop/
-│   ├── nbpr_iperf3/
-│   ├── nbpr_jq/
-│   ├── nbpr_libpcap/
-│   ├── nbpr_strace/
-│   └── nbpr_tcpdump/
-├── mix.exs                   # build harness (pulls in :nerves and target systems)
-└── CLAUDE.md                 # scope, conventions, design decisions
+├── nbpr/                # the `:nbpr` library (published to public hex.pm)
+├── packages/            # one mix project per `:nbpr_*` binary package
+├── docs/                # Diátaxis-organised guides; published to hexdocs
+├── mix.exs              # build harness (pulls in :nerves + target systems)
+└── CONTRIBUTING.md
 ```
 
 The workspace `mix.exs` pulls in `:nerves` plus whichever `:nerves_system_*`

@@ -3,63 +3,37 @@
 The library underpinning the [NBPR](https://github.com/jimsynz/nbpr)
 (Nerves Binary Package Repository) ecosystem — a curated Hex repo for
 distributing Buildroot-built target binaries to Nerves firmware
-projects. `:nbpr` itself ships only the macros, Mix tasks, and resolver
-machinery; the binaries live in sibling `:nbpr_*` packages published to
-the `nbpr` Hex organisation.
+projects. `:nbpr` itself ships only the macros, Mix tasks, and
+resolver machinery; the binaries live in sibling `:nbpr_*` packages
+published to the `nbpr` Hex organisation.
 
-## What it does
+## Quickstart
 
-- **`NBPR.BrPackage`** — the macro every `:nbpr_*` package `use`s.
-  Validates options against a NimbleOptions schema, generates an
-  introspection function (`__nbpr_package__/0`), and (for daemon-bearing
-  packages) a nested supervised module per declared daemon.
-- **`mix nbpr.fetch`** — runs ahead of `mix firmware`. Walks the user's
-  loaded apps for `:nbpr_*` packages, pulls each one's prebuilt artefact
-  from GHCR (or source-builds via Buildroot when no prebuild exists),
-  and copies the binaries into the package's `priv/` for the OTP release
-  to pick up.
-- **`NBPR.Application`** — boots on the device, sets `PATH` and
-  `LD_LIBRARY_PATH` so the binaries shipped via `priv/` are reachable
-  from anywhere in the user's app.
-- **`mix nbpr.new <name>`** — scaffolds a new `:nbpr_*` package, reading
-  the upstream version, SPDX-validated licences, homepage, and a starter
-  description directly from the workspace's pinned Buildroot tree.
+In a Nerves project:
 
-## Consumer flow
+    mix igniter.install nbpr
 
-`:nbpr` lives on public hex.pm. The `:nbpr_*` binary packages live in
-the `nbpr` Hex organisation; authenticate once per machine with the
-public read key:
+Then add the binary packages you need to your deps and run
+`mix firmware`. Full walkthrough in
+[Getting started](getting-started.md).
 
-    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
+## Where to go next
 
-The key is read-only and intentionally public — it gates package
-fetches without gating discoverability. Don't use it for publishing
-(it has no publish scope).
+Documentation is organised by intent ([Diátaxis](https://diataxis.fr/)):
 
-Then in your Nerves app's `mix.exs`:
+- **Tutorials** — [Getting started](getting-started.md).
+- **How-to guides** —
+  [Add a Buildroot package to NBPR](add-a-buildroot-package.html).
+- **Reference** — [Catalogue](catalogue.html) of available binary
+  packages, plus the Mix-task and module reference in the API docs.
+- **Explanation** — [Why NBPR exists](why-nbpr.md) and
+  [How NBPR composes with Buildroot](packaging-model.md).
 
-    defp deps do
-      [
-        {:nbpr, "~> 0.2"},
-        {:nbpr_jq, "~> 1.0", organization: "nbpr"}
-      ]
-    end
+## Source
 
-and alias `mix firmware`:
-
-    aliases: ["firmware": ["nbpr.fetch", "firmware"]]
-
-`mix deps.get` + `mix firmware` work as normal from there.
-
-For daemon-bearing packages (e.g. `:nbpr_dnsmasq`), add the generated
-daemon module to your supervision tree — see each package's README and
-generated `@moduledoc` for specifics.
-
-## Repo layout
-
-The full source — including all currently published packages — lives
-at <https://github.com/jimsynz/nbpr>.
+[github.com/jimsynz/nbpr](https://github.com/jimsynz/nbpr) — the
+`:nbpr` library lives at `nbpr/`; the binary packages live at
+`packages/nbpr_*/`.
 
 ## Licence
 
