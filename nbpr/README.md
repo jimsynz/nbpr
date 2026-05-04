@@ -30,7 +30,7 @@ the `nbpr` Hex organisation.
 The `:nbpr` library and all `:nbpr_*` packages live in the `nbpr` Hex
 organisation. Authenticate once per machine with the public read key:
 
-    mix hex.organization auth nbpr --key 7b40c79c3feee2fbbcf1e13be7f3616c
+    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
 
 The key is read-only and intentionally public — it gates package
 fetches without gating discoverability. Don't use it for publishing
