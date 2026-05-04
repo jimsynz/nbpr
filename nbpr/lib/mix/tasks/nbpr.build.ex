@@ -11,12 +11,25 @@ defmodule Mix.Tasks.Nbpr.Build do
   uses the same orchestrator as a fallback when no prebuilt artefact is
   published for the active (system, system_version, build_opts) tuple.
 
+  ## Cache short-circuit
+
+  Before kicking off a fresh source-build, the task HEADs the package's
+  GHCR `{:ghcr, "ghcr.io/<owner>"}` site for the cache-key-derived tag.
+  On a hit it downloads the prebuilt tarball into the output directory
+  and skips the build entirely — the cache key encodes everything that
+  affects the artefact (package version, system, system version, build
+  opts), so a hit is by definition byte-identical to what we'd build.
+
+  Pass `--force` to bypass the cache check (useful for verifying the
+  build still works locally, or for re-publishing after a cache-key
+  collision investigation).
+
   ## Required environment
 
   - `MIX_TARGET` set to a real Nerves target (not `:host`).
   - `deps/nerves_system_br/` and `deps/<system>/` resolved (`mix deps.get`).
   - Either Linux + inside `mix nerves.system.shell`, or `docker` on PATH
-    (any host).
+    (any host) — only needed when no cache hit is found.
 
   ## Flags
 
@@ -24,15 +37,18 @@ defmodule Mix.Tasks.Nbpr.Build do
       Defaults to `<build_path>/nbpr/`.
     * `--build-opts key=value,...` — explicit build options for the package.
       Defaults are read from the package's schema if omitted.
+    * `--force` — skip the GHCR cache-hit check and always source-build.
   """
 
   use Mix.Task
 
+  alias NBPR.Artifact
+  alias NBPR.Artifact.Resolvers.GHCR
   alias NBPR.Buildroot.Builder
 
   @requirements ["app.config"]
 
-  @switches [output: :string, build_opts: :string]
+  @switches [output: :string, build_opts: :string, force: :boolean]
   @aliases [o: :output]
 
   @impl Mix.Task
@@ -63,9 +79,65 @@ defmodule Mix.Tasks.Nbpr.Build do
       build_opts: build_opts
     }
 
-    tarball = Builder.build!(pkg, inputs, output_dir)
+    tarball =
+      case maybe_reuse_cached(pkg, inputs, output_dir, opts[:force]) do
+        {:ok, path} -> path
+        :miss -> Builder.build!(pkg, inputs, output_dir)
+      end
+
     Mix.shell().info("[nbpr] packed #{tarball}")
     tarball
+  end
+
+  # Returns `{:ok, tarball_path}` when a prebuilt artefact for this exact
+  # input tuple is already on the package's GHCR site (and was successfully
+  # downloaded), or `:miss` to fall through to a source-build.
+  #
+  # Any failure mode (no GHCR site declared, HEAD failure, 404, download
+  # failure) is treated as a miss — the build path is the safe fallback,
+  # and the cache check shouldn't itself become a cause of build failures.
+  defp maybe_reuse_cached(_pkg, _inputs, _output_dir, true), do: :miss
+
+  defp maybe_reuse_cached(pkg, inputs, output_dir, _force) do
+    case ghcr_image(pkg) do
+      nil ->
+        :miss
+
+      image ->
+        tag = GHCR.tag_for(inputs)
+
+        case GHCR.tag_exists?(image, tag) do
+          {:ok, true} -> download_cached(image, tag, inputs, output_dir)
+          {:ok, false} -> :miss
+          {:error, reason} -> miss_with_warn("HEAD #{image}:#{tag} failed", reason)
+        end
+    end
+  end
+
+  defp ghcr_image(pkg) do
+    case Enum.find(pkg.artifact_sites, &match?({:ghcr, "ghcr.io/" <> _}, &1)) do
+      {:ghcr, "ghcr.io/" <> owner} -> "#{owner}/nbpr_#{pkg.name}"
+      _ -> nil
+    end
+  end
+
+  defp download_cached(image, tag, inputs, output_dir) do
+    File.mkdir_p!(output_dir)
+    dest = Path.join(output_dir, Artifact.tarball_name(inputs))
+
+    case GHCR.get(%{image: image, tag: tag}, dest) do
+      :ok ->
+        Mix.shell().info("[nbpr] reused prebuilt #{image}:#{tag}")
+        {:ok, dest}
+
+      {:error, reason} ->
+        miss_with_warn("download of #{image}:#{tag} failed", reason)
+    end
+  end
+
+  defp miss_with_warn(context, reason) do
+    Mix.shell().info("[nbpr] cache lookup: #{context} (#{inspect(reason)}); building fresh")
+    :miss
   end
 
   defp parse_positional!([module]), do: module
