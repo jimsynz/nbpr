@@ -28,9 +28,13 @@ the `nbpr` Hex organisation.
 ## Consumer flow
 
 The `:nbpr` library and all `:nbpr_*` packages live in the `nbpr` Hex
-organisation, so first-time consumers register a read-key:
+organisation. Authenticate once per machine with the public read key:
 
-    mix hex.organization auth nbpr --key <read-key>
+    mix hex.organization auth nbpr --key 7b40c79c3feee2fbbcf1e13be7f3616c
+
+The key is read-only and intentionally public — it gates package
+fetches without gating discoverability. Don't use it for publishing
+(it has no publish scope).
 
 Then in your Nerves app's `mix.exs`:
 
