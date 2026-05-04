@@ -28,9 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # workflow_run runs against the default branch; pin to the commit
-          # the build succeeded on so we tag the right SHA.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Check out latest main rather than the build's head_sha — we want
+          # whatever logic and version metadata is current, not a snapshot
+          # of the SHA the build happened to succeed on. The releasable-vs-
+          # Hex diff is what determines correctness; SHA pinning would just
+          # mean a stale checkout when auto-release infrastructure itself
+          # has been bumped between the build and now.
+          ref: main
           fetch-depth: 0
 
       - uses: erlef/setup-beam@v1
