@@ -52,10 +52,23 @@ defmodule Mix.Tasks.Nbpr.Releasable do
     entries = compute(root, &fetch_hex_version/1)
 
     if opts[:json] do
-      Mix.shell().info(IO.iodata_to_binary(:json.encode(entries)))
+      Mix.shell().info(IO.iodata_to_binary(:json.encode(json_friendly(entries))))
     else
       print_human(entries)
     end
+  end
+
+  # OTP's `:json.encode/1` emits unknown atoms as their string name (so `nil`
+  # → `"nil"`); only the literal atom `:null` becomes JSON `null`. Map our
+  # `hex_version: nil` (genuinely "no published version") to `:null` before
+  # encoding so downstream consumers get a real null.
+  defp json_friendly(entries) do
+    Enum.map(entries, fn entry ->
+      Map.update!(entry, :hex_version, fn
+        nil -> :null
+        v -> v
+      end)
+    end)
   end
 
   @doc """

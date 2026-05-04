@@ -51,38 +51,14 @@ jobs:
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
+          # Explicit compile is necessary — without it, mix's auto-compile
+          # path on the runner doesn't load the task module reliably, and
+          # `mix nbpr.releasable` exits 0 with no output instead of running.
           mix compile
 
-          # Capture stdout + stderr separately so we can tell which stream
-          # the task is writing to. The previous version captured only
-          # stdout via $() and ended up with an empty PLAN — visibility
-          # into stderr will show whether the JSON went to the wrong stream
-          # or the task raised before printing.
-          set +e
-          mix nbpr.releasable --json --root "$GITHUB_WORKSPACE" \
-            > /tmp/plan.stdout 2> /tmp/plan.stderr
-          mix_exit=$?
-          set -e
-
-          echo "mix exit code: $mix_exit"
-          echo "----- stdout -----"
-          cat /tmp/plan.stdout
-          echo "----- stderr -----"
-          cat /tmp/plan.stderr
-          echo "------------------"
-
-          if [ "$mix_exit" -ne 0 ]; then
-            echo "::error::mix nbpr.releasable failed (exit $mix_exit)"
-            exit 1
-          fi
-
-          PLAN=$(cat /tmp/plan.stdout)
-          if [ -z "$PLAN" ]; then
-            echo "::error::mix nbpr.releasable produced no stdout"
-            exit 1
-          fi
-
-          echo "$PLAN" | python3 -m json.tool
+          PLAN=$(mix nbpr.releasable --json --root "$GITHUB_WORKSPACE")
+          echo "Plan:"
+          echo "$PLAN" | jq .
           echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
 
       - name: Tag, dispatch release.yml, and wait for Hex
@@ -102,11 +78,7 @@ jobs:
           # push the tag (just to materialise the ref) and then explicitly
           # dispatch release.yml via `gh workflow run`, which IS allowed
           # for GITHUB_TOKEN.
-          echo "$PLAN" | python3 -c '
-          import json, sys
-          for e in json.load(sys.stdin):
-              print(f"{e[\"name\"]}\t{e[\"version\"]}\t{e[\"tag\"]}")
-          ' > /tmp/plan.tsv
+          echo "$PLAN" | jq -r '.[] | [.name, .version, .tag] | @tsv' > /tmp/plan.tsv
 
           while IFS=$'\t' read -r name version tag; do
             echo "::group::Releasing $tag"
