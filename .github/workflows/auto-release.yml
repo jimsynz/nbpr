@@ -1,0 +1,126 @@
+name: auto-release
+
+# Fires after `build` completes successfully on main. Diffs every package's
+# mix.exs `@version` against Hex; for each package whose local version is
+# ahead, creates and pushes a release tag in topo-sorted order, waiting
+# for Hex propagation between tags so dependent packages can `mix deps.get`
+# their newly-published siblings during their own release.yml run.
+#
+# Idempotent: if the version on Hex already matches local, nothing happens.
+# A failed publish leaves Hex behind, so the next successful build retries.
+
+on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # workflow_run runs against the default branch; pin to the commit
+          # the build succeeded on so we tag the right SHA.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Compute releasables
+        id: plan
+        working-directory: nbpr
+        env:
+          NBPR_READ_KEY: ${{ secrets.NBPR_READ_KEY }}
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+          PLAN=$(mix nbpr.releasable --json --root "$GITHUB_WORKSPACE")
+          echo "Plan:"
+          echo "$PLAN" | python3 -m json.tool
+          echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
+
+      - name: Tag, dispatch release.yml, and wait for Hex
+        if: ${{ steps.plan.outputs.plan != '[]' }}
+        env:
+          NBPR_READ_KEY: ${{ secrets.NBPR_READ_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAN: ${{ steps.plan.outputs.plan }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # GitHub deliberately blocks workflows from triggering other
+          # workflows when pushed via GITHUB_TOKEN (anti-recursion). So we
+          # push the tag (just to materialise the ref) and then explicitly
+          # dispatch release.yml via `gh workflow run`, which IS allowed
+          # for GITHUB_TOKEN.
+          echo "$PLAN" | python3 -c '
+          import json, sys
+          for e in json.load(sys.stdin):
+              print(f"{e[\"name\"]}\t{e[\"version\"]}\t{e[\"tag\"]}")
+          ' > /tmp/plan.tsv
+
+          while IFS=$'\t' read -r name version tag; do
+            echo "::group::Releasing $tag"
+
+            if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
+              echo "Tag $tag already on origin; skipping push, dispatching anyway"
+            else
+              git tag "$tag"
+              git push origin "$tag"
+              echo "Pushed $tag"
+            fi
+
+            gh workflow run release.yml -f tag="$tag"
+            echo "Dispatched release.yml for $tag"
+
+            # Poll Hex org API. release.yml needs ~1-2 min for the
+            # publish; the rest is propagation slack. Hex is the source of
+            # truth — a successful workflow run plus a stale Hex response
+            # would still break the next package's `mix deps.get`.
+            deadline=$(( $(date +%s) + 900 ))
+            hex_version=""
+            while [ "$(date +%s)" -lt "$deadline" ]; do
+              hex_version=$(curl -sS \
+                -H "authorization: $NBPR_READ_KEY" \
+                -H "accept: application/json" \
+                "https://hex.pm/api/repos/nbpr/packages/$name" \
+                | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(\"latest_stable_version\") or d.get(\"latest_version\") or \"\")" \
+                2>/dev/null || true)
+
+              if [ "$hex_version" = "$version" ]; then
+                echo "Hex now has $name@$version"
+                break
+              fi
+
+              echo "  Hex has '$hex_version'; want '$version' — sleeping 20s"
+              sleep 20
+            done
+
+            if [ "$hex_version" != "$version" ]; then
+              echo "::error::timed out waiting for $name@$version on Hex"
+              exit 1
+            fi
+
+            echo "::endgroup::"
+          done < /tmp/plan.tsv
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Plan was: ${{ steps.plan.outputs.plan }}"
