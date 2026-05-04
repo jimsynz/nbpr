@@ -410,41 +410,40 @@ defmodule Mix.Tasks.Nbpr.New do
   end
 
   defp readme_md(_short, package, br_package_name, metadata, github_repo) do
-    {tagline, upstream_line, hex_requirement} =
-      readme_fragments(br_package_name, metadata, package)
+    {tagline, hex_requirement, licence_line} = readme_fragments(br_package_name, metadata)
 
     """
     # #{package}
-    #{tagline}#{upstream_line}
+    #{tagline}#{licence_line}
 
     ## Usage
 
-    In your Nerves project's `mix.exs`:
+    Authenticate to the `nbpr` Hex organisation once per machine (the
+    read key is intentionally public — it gates discoverability of the
+    org's binary packages, not access to private content):
+
+        mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
+
+    Then add this package to your Nerves project's `mix.exs`:
 
         {:#{package}, "#{hex_requirement}", organization: "nbpr"}
 
-    Run `mix deps.get`, then `mix firmware` — the binary lands at
-    `<release>/lib/#{package}-<vsn>/priv/usr/...` and `NBPR.Application`
-    adds it to `PATH` and `LD_LIBRARY_PATH` at boot. See the
-    [NBPR README](https://github.com/#{github_repo}) for the full
-    integration flow (including supervision-tree wiring for
-    daemon-bearing packages).
+    Run `mix deps.get`, then `mix firmware`. The full consumer flow —
+    including the `firmware:` alias that pulls binaries ahead of the
+    firmware build, and supervision-tree wiring for daemon-bearing
+    packages — lives in the [NBPR Getting Started
+    guide](https://hexdocs.pm/nbpr/getting-started.html). The fastest
+    path to a working setup is `mix igniter.install nbpr`.
 
-    ## Configuration
-
-    Build options can be overridden in your app's `config/target.exs`:
-
-        config :#{package}, build_opts: [
-          # ...
-        ]
+    Source: <https://github.com/#{github_repo}>.
     """
   end
 
-  defp readme_fragments(br_package_name, nil, _package) do
-    {"\n`#{br_package_name}` packaged for Nerves.\n", "", "~> 0.1"}
+  defp readme_fragments(br_package_name, nil) do
+    {"\n`#{br_package_name}` packaged for Nerves.\n", "~> 0.1", ""}
   end
 
-  defp readme_fragments(br_package_name, %BrPackage{} = pkg, _package) do
+  defp readme_fragments(br_package_name, %BrPackage{} = pkg) do
     upstream =
       case pkg.homepage do
         nil -> "`#{br_package_name}`"
@@ -456,7 +455,14 @@ defmodule Mix.Tasks.Nbpr.New do
     tagline =
       "\n> #{description}\n\n#{upstream} packaged for Nerves. Tracks the upstream Buildroot `#{br_package_name}` package — this release wraps **#{pkg.version}**.\n"
 
-    {tagline, "", hex_requirement(pkg.version)}
+    licence_line =
+      case pkg.licences do
+        [] -> ""
+        [single] -> "\nLicence: #{single}.\n"
+        list -> "\nLicences: #{Enum.join(list, ", ")}.\n"
+      end
+
+    {tagline, hex_requirement(pkg.version), licence_line}
   end
 
   # Hex `~> X.Y` matches `>= X.Y, < X+1.0`, so we advertise the major

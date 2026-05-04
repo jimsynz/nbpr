@@ -203,6 +203,9 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert readme =~ "[`fixturepkg`](https://example.com/fixturepkg)"
       assert readme =~ "wraps **1.2.3**"
       assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", organization: "nbpr"}|
+      assert readme =~ "Licence: MIT."
+      assert readme =~ "mix hex.organization auth nbpr"
+      assert readme =~ "https://hexdocs.pm/nbpr/getting-started.html"
     end
 
     test "raises when BR licence is non-SPDX without --licenses override", %{tmp: tmp} do
