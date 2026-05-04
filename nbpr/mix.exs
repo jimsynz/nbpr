@@ -48,7 +48,21 @@ defmodule NBPR.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: [
+        "README.md",
+        "../CONTRIBUTING.md",
+        "../docs/tutorials/getting-started.md",
+        "../docs/howto/add-a-buildroot-package.md",
+        "../docs/reference/catalogue.md",
+        "../docs/explanation/why-nbpr.md",
+        "../docs/explanation/packaging-model.md"
+      ],
+      groups_for_extras: [
+        Tutorials: ~r{docs/tutorials/.*},
+        "How-to guides": ~r{docs/howto/.*},
+        Reference: ~r{docs/reference/.*},
+        Explanation: ~r{docs/explanation/.*}
+      ],
       source_url: @source_url,
       source_ref: "v#{@version}",
       groups_for_modules: [

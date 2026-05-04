@@ -110,7 +110,7 @@ Extend it as the package needs. The full option schema is in
   `modprobe` for each at boot.
 - **Build options** (Buildroot kconfig you want to expose to consumers,
   e.g. `--enable-fips`) — add a `build_opts:` schema. Consumers
-  override via `Mix.Config` per target.
+  override via their app's `config/target.exs` per target.
 
 Per-extension how-tos for each of these are on the to-do list. For now,
 follow the schema in `NBPR.BrPackage`'s moduledoc and copy from an
