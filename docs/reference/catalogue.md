@@ -84,6 +84,18 @@ itself isn't shown because it lives on public hex.pm rather than the
       '<a href="https://hex.pm/orgs/nbpr/packages">hex.pm/orgs/nbpr</a>.</p>';
   }
 
+  if (location.protocol === "file:") {
+    TARGET.innerHTML =
+      '<p class="error">Local preview note: browsers block <code>fetch()</code> ' +
+      "from <code>file://</code> origins, so the live list won't load when you " +
+      "open the generated HTML directly.</p>" +
+      '<p class="error">Serve the docs over HTTP to test:</p>' +
+      "<pre><code>mix docs &amp;&amp; cd doc &amp;&amp; python3 -m http.server</code></pre>" +
+      '<p class="error">Or browse the deployed copy on ' +
+      '<a href="https://hexdocs.pm/nbpr">hexdocs.pm/nbpr</a>.</p>';
+    return;
+  }
+
   fetch(API, { headers: { Authorization: KEY, Accept: "application/json" } })
     .then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
