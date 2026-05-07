@@ -308,9 +308,9 @@ defmodule Mix.Tasks.Nbpr.New do
         Mix.raise("""
         Could not locate nbpr workspace root from current directory.
 
-        The workspace root is the directory containing both `PLAN.md` and a
-        `nbpr/` subdirectory (the library). Run `mix nbpr.new` from anywhere
-        inside the nbpr workspace tree.
+        The workspace root is the directory containing both a `nbpr/`
+        subdirectory (the library) and a `packages/` subdirectory. Run
+        `mix nbpr.new` from anywhere inside the nbpr workspace tree.
         """)
 
       path ->
@@ -327,8 +327,8 @@ defmodule Mix.Tasks.Nbpr.New do
   end
 
   defp workspace_root?(path) do
-    File.exists?(Path.join(path, "PLAN.md")) and
-      File.dir?(Path.join(path, "nbpr"))
+    File.dir?(Path.join(path, "nbpr")) and
+      File.dir?(Path.join(path, "packages"))
   end
 
   defp build_files(

@@ -8,8 +8,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       Path.join(System.tmp_dir!(), "nbpr_new_test_#{System.unique_integer([:positive])}")
 
     File.mkdir_p!(tmp)
-    File.write!(Path.join(tmp, "PLAN.md"), "# fixture workspace\n")
     File.mkdir_p!(Path.join(tmp, "nbpr"))
+    File.mkdir_p!(Path.join(tmp, "packages"))
 
     on_exit(fn -> File.rm_rf!(tmp) end)
 
@@ -151,8 +151,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
         Path.join(System.tmp_dir!(), "nbpr_new_artifacts_#{System.unique_integer([:positive])}")
 
       File.mkdir_p!(tmp)
-      File.write!(Path.join(tmp, "PLAN.md"), "# fixture\n")
       File.mkdir_p!(Path.join(tmp, "nbpr"))
+      File.mkdir_p!(Path.join(tmp, "packages"))
 
       seed_nerves_system_br!(tmp, @br_version)
       seed_br_cache!(artifacts, @br_version)
