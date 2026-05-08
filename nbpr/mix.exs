@@ -45,7 +45,7 @@ defmodule NBPR.MixProject do
       # nbpr` to bootstrap their project. Listed here so `Mix.Tasks.Nbpr.Install`
       # compiles in this library's own build.
       {:igniter, "~> 0.7", optional: true},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
   end
 
