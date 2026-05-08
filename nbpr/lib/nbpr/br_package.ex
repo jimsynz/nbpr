@@ -173,13 +173,14 @@ defmodule NBPR.BrPackage do
   @doc """
   Default argv builder. Zips each opt with its `:flag` extension; booleans emit
   the flag-only form, other values emit `[flag, to_string(value)]`, opts without
-  a `:flag` mapping are dropped.
+  a `:flag` mapping or with a `nil` value (unset, no schema default) are dropped.
   """
   @spec default_argv(keyword(), %{atom() => String.t()}) :: [String.t()]
   def default_argv(validated_opts, opt_flags) do
     Enum.flat_map(validated_opts, fn {opt_name, value} ->
       case {Map.get(opt_flags, opt_name), value} do
         {nil, _} -> []
+        {_, nil} -> []
         {_, false} -> []
         {flag, true} -> [flag]
         {flag, value} -> [flag, to_string(value)]
