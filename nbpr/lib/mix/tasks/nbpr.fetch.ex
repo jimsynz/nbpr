@@ -176,6 +176,11 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
     if File.dir?(target_src) do
       priv_dest = priv_dir_for(app)
+      # Wipe + recreate priv each run so a re-fetch never has to overwrite
+      # read-only files left behind by the previous run (Buildroot ships
+      # static archives like `libe2p.a` with mode 0444, which
+      # `File.cp_r!/2` can't write over).
+      File.rm_rf!(priv_dest)
       File.mkdir_p!(priv_dest)
       File.cp_r!(target_src, priv_dest)
     end
