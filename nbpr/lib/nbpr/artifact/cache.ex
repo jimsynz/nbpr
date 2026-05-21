@@ -48,15 +48,16 @@ defmodule NBPR.Artifact.Cache do
   end
 
   defp extract_tarball!(tarball_path, dest_dir) do
-    case :erl_tar.extract(
-           String.to_charlist(tarball_path),
-           [:compressed, {:cwd, String.to_charlist(dest_dir)}]
-         ) do
-      :ok ->
+    # Shell out to system tar — `:erl_tar` rejects cross-directory relative
+    # symlinks (e.g. `target/usr/lib/libfoo.so` → `../../lib/libfoo.so.1`),
+    # which are legitimate and common in Buildroot artefacts (util-linux,
+    # mesa3d, multi-prefix libraries generally).
+    case System.cmd("tar", ["-xzf", tarball_path, "-C", dest_dir], stderr_to_stdout: true) do
+      {_, 0} ->
         :ok
 
-      {:error, reason} ->
-        raise "failed to extract #{tarball_path}: #{inspect(reason)}"
+      {output, code} ->
+        raise "failed to extract #{tarball_path} (tar exit #{code}): #{output}"
     end
   end
 
