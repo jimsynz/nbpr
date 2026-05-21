@@ -133,7 +133,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       package_version: package_version,
       system_app: system_app,
       system_version: system_version,
-      build_opts: Application.get_env(app, :build_opts, [])
+      build_opts: resolve_build_opts(pkg, app)
     }
 
     unless Cache.valid?(inputs) do
@@ -169,6 +169,21 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
   defp first_line(msg) do
     msg |> String.split("\n", trim: true) |> List.first() || msg
+  end
+
+  # Merges user overrides from `Application.get_env/2` on top of the
+  # package's NimbleOptions defaults, then validates. The result becomes
+  # part of the artefact cache key — so a package with
+  # `build_opts: [curl_cli: [default: true, ...]]` resolves the same key
+  # whether or not the user set anything, which keeps `mix nbpr.fetch`
+  # and `mix nbpr.build` in sync.
+  defp resolve_build_opts(pkg, app) do
+    user = Application.get_env(app, :build_opts, [])
+
+    case NimbleOptions.validate(user, pkg.build_opts) do
+      {:ok, resolved} -> resolved
+      {:error, %{message: msg}} -> Mix.raise("invalid build_opts for #{app}: #{msg}")
+    end
   end
 
   defp install_target!(cache_dir, app) do
