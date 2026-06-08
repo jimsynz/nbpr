@@ -25,14 +25,14 @@ defmodule NBPR.Workspace.MixProject do
   # Single source of truth for the CI prebuild matrix
   # (`mix nbpr.matrix --json`). Map shape: `target => {github, version}`.
   @prebuild_systems %{
-    rpi0: {"nerves-project/nerves_system_rpi0", "2.0.3"},
-    rpi0_2: {"nerves-project/nerves_system_rpi0_2", "2.0.3"},
-    rpi3: {"nerves-project/nerves_system_rpi3", "2.0.3"},
-    rpi3a: {"nerves-project/nerves_system_rpi3a", "2.0.3"},
-    rpi4: {"nerves-project/nerves_system_rpi4", "2.0.3"},
-    rpi5: {"nerves-project/nerves_system_rpi5", "2.0.3"},
-    bbb: {"nerves-project/nerves_system_bbb", "2.29.4"},
-    x86_64: {"nerves-project/nerves_system_x86_64", "1.33.4"}
+    rpi0: {"nerves-project/nerves_system_rpi0", "2.0.4"},
+    rpi0_2: {"nerves-project/nerves_system_rpi0_2", "2.0.4"},
+    rpi3: {"nerves-project/nerves_system_rpi3", "2.0.4"},
+    rpi3a: {"nerves-project/nerves_system_rpi3a", "2.0.4"},
+    rpi4: {"nerves-project/nerves_system_rpi4", "2.0.4"},
+    rpi5: {"nerves-project/nerves_system_rpi5", "2.0.4"},
+    bbb: {"nerves-project/nerves_system_bbb", "2.29.5"},
+    x86_64: {"nerves-project/nerves_system_x86_64", "1.33.5"}
   }
 
   @doc """
