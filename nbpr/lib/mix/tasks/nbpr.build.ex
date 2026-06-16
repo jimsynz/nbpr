@@ -36,13 +36,16 @@ defmodule Mix.Tasks.Nbpr.Build do
     * `-o`, `--output` — directory for the produced tarball.
       Defaults to `<build_path>/nbpr/`.
     * `--build-opts key=value,...` — explicit build options for the package.
-      Defaults are read from the package's schema if omitted.
+      Merged over any `config :nbpr_<name>, build_opts: [...]` and the
+      package's schema defaults, so the resolved options (and thus the cache
+      key) match what `mix nbpr.fetch` would compute for the same config.
     * `--force` — skip the GHCR cache-hit check and always source-build.
   """
 
   use Mix.Task
 
   alias NBPR.Artifact
+  alias NBPR.Artifact.Cache
   alias NBPR.Artifact.Resolvers.GHCR
   alias NBPR.Buildroot.Builder
 
@@ -67,13 +70,14 @@ defmodule Mix.Tasks.Nbpr.Build do
     end
 
     pkg = module.__nbpr_package__()
+    package_app = String.to_atom("nbpr_#{pkg.name}")
     {system_app, system_version} = active_system!()
     output_dir = output_dir!(opts)
-    build_opts = resolve_build_opts(pkg, opts)
+    build_opts = resolve_build_opts(pkg, package_app, opts)
 
     inputs = %{
-      package_name: "nbpr_#{pkg.name}",
-      package_version: package_version!(pkg),
+      package_name: Atom.to_string(package_app),
+      package_version: package_version!(package_app),
       system_app: system_app,
       system_version: system_version,
       build_opts: build_opts
@@ -85,7 +89,10 @@ defmodule Mix.Tasks.Nbpr.Build do
         :miss -> Builder.build!(pkg, inputs, output_dir)
       end
 
+    :ok = Cache.extract!(tarball, inputs)
+
     Mix.shell().info("[nbpr] packed #{tarball}")
+    Mix.shell().info("[nbpr] cached #{Artifact.cache_dir(inputs)}")
     tarball
   end
 
@@ -163,9 +170,7 @@ defmodule Mix.Tasks.Nbpr.Build do
     end
   end
 
-  defp package_version!(pkg) do
-    package_app = String.to_atom("nbpr_#{pkg.name}")
-
+  defp package_version!(package_app) do
     case Application.spec(package_app, :vsn) do
       nil -> Mix.raise("could not read version of #{inspect(package_app)}")
       vsn -> to_string(vsn)
@@ -178,12 +183,24 @@ defmodule Mix.Tasks.Nbpr.Build do
     dir
   end
 
-  defp resolve_build_opts(pkg, opts) do
-    if opts[:build_opts] do
-      parse_cli_build_opts(opts[:build_opts])
-    else
-      defaults_for(pkg)
+  # Merges CLI `--build-opts` over the user's `Application.get_env` config over
+  # the package's NimbleOptions defaults, then validates. This mirrors
+  # `Mix.Tasks.Nbpr.Fetch.resolve_build_opts/2` (which has no CLI layer) so the
+  # two tasks derive the same artefact cache key for the same package config —
+  # otherwise `nbpr.build` would populate a cache dir that `nbpr.fetch` never
+  # looks up.
+  defp resolve_build_opts(pkg, package_app, opts) do
+    config = Application.get_env(package_app, :build_opts, [])
+    user = Keyword.merge(config, cli_build_opts(opts))
+
+    case NimbleOptions.validate(user, pkg.build_opts) do
+      {:ok, resolved} -> resolved
+      {:error, %{message: msg}} -> Mix.raise("invalid build_opts for #{package_app}: #{msg}")
     end
+  end
+
+  defp cli_build_opts(opts) do
+    if opts[:build_opts], do: parse_cli_build_opts(opts[:build_opts]), else: []
   end
 
   defp parse_cli_build_opts(""), do: []
@@ -206,13 +223,6 @@ defmodule Mix.Tasks.Nbpr.Build do
     case Integer.parse(v) do
       {int, ""} -> int
       _ -> v
-    end
-  end
-
-  defp defaults_for(pkg) do
-    case NimbleOptions.validate([], pkg.build_opts) do
-      {:ok, defaults} -> defaults
-      {:error, _} -> []
     end
   end
 end
