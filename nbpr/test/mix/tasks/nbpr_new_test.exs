@@ -16,6 +16,36 @@ defmodule Mix.Tasks.Nbpr.NewTest do
     {:ok, tmp: tmp}
   end
 
+  describe "assume_yes?/1" do
+    setup do
+      on_exit(fn -> System.delete_env("MIX_NBPR_YES") end)
+    end
+
+    test "is false with no flag and no env var" do
+      System.delete_env("MIX_NBPR_YES")
+      refute Mix.Tasks.Nbpr.New.assume_yes?([])
+    end
+
+    test "is true when the --yes flag is set" do
+      System.delete_env("MIX_NBPR_YES")
+      assert Mix.Tasks.Nbpr.New.assume_yes?(yes: true)
+    end
+
+    test "is true when MIX_NBPR_YES is set to a truthy value" do
+      for value <- ["1", "true", "yes", "YES", "True"] do
+        System.put_env("MIX_NBPR_YES", value)
+        assert Mix.Tasks.Nbpr.New.assume_yes?([]), "expected #{inspect(value)} to be truthy"
+      end
+    end
+
+    test "is false when MIX_NBPR_YES is set to a falsey value" do
+      for value <- ["0", "false", "no", ""] do
+        System.put_env("MIX_NBPR_YES", value)
+        refute Mix.Tasks.Nbpr.New.assume_yes?([]), "expected #{inspect(value)} to be falsey"
+      end
+    end
+  end
+
   describe "run/1 with a valid name" do
     test "creates the expected file tree", %{tmp: tmp} do
       capture_io(fn ->
