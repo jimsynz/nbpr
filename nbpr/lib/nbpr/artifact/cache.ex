@@ -12,6 +12,13 @@ defmodule NBPR.Artifact.Cache do
 
   alias NBPR.Artifact
 
+  @type entry :: %{
+          dir: String.t(),
+          path: String.t(),
+          manifest: map() | nil,
+          mtime: integer()
+        }
+
   @doc """
   Returns `true` when the artefact is already extracted into the cache
   directory. Currently a presence check; manifest-based verification is added
@@ -20,6 +27,66 @@ defmodule NBPR.Artifact.Cache do
   @spec valid?(Artifact.build_inputs()) :: boolean()
   def valid?(%{} = inputs) do
     File.dir?(Artifact.cache_dir(inputs))
+  end
+
+  @doc """
+  Lists extracted artefacts in the cache root.
+
+  An entry is a cache-root subdirectory containing a `manifest.json` — this
+  skips siblings like `dl/` (staged downloads) and `system-source/`. Each
+  entry carries its directory name, absolute path, parsed manifest (or `nil`
+  if the JSON is unreadable), and POSIX mtime. Sorted newest-first.
+  """
+  @spec list() :: [entry()]
+  def list do
+    root = Artifact.cache_root()
+
+    case File.ls(root) do
+      {:ok, names} ->
+        names
+        |> Enum.map(&Path.join(root, &1))
+        |> Enum.filter(&File.dir?/1)
+        |> Enum.filter(&File.regular?(Path.join(&1, "manifest.json")))
+        |> Enum.map(&describe_entry/1)
+        |> Enum.sort_by(& &1.mtime, :desc)
+
+      {:error, _} ->
+        []
+    end
+  end
+
+  @doc """
+  Removes a single cache entry by absolute path. Returns `:ok`.
+  """
+  @spec remove!(Path.t()) :: :ok
+  def remove!(path) do
+    File.rm_rf!(path)
+    :ok
+  end
+
+  defp describe_entry(path) do
+    %{
+      dir: Path.basename(path),
+      path: path,
+      manifest: read_manifest(path),
+      mtime: mtime(path)
+    }
+  end
+
+  defp read_manifest(path) do
+    case File.read(Path.join(path, "manifest.json")) do
+      {:ok, contents} -> :json.decode(contents)
+      {:error, _} -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp mtime(path) do
+    case File.stat(path, time: :posix) do
+      {:ok, %File.Stat{mtime: mtime}} -> mtime
+      {:error, _} -> 0
+    end
   end
 
   @doc """
