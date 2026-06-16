@@ -29,6 +29,11 @@ defmodule Mix.Tasks.Nbpr.New do
       when BR's `<NAME>_LICENSE` strings aren't valid SPDX identifiers
       (e.g. `GPL-2.0+`); the generator prints similarity-ranked
       suggestions to choose from.
+    * `--yes`, `-y` — proceed with the first-run Buildroot tarball download
+      (~50 MB) without the interactive confirmation prompt. Setting
+      `MIX_NBPR_YES=1` in the environment has the same effect. Use for CI
+      and batch scaffolding, where stdin isn't a terminal and the prompt
+      would otherwise abort.
 
   ## What gets generated
 
@@ -45,11 +50,12 @@ defmodule Mix.Tasks.Nbpr.New do
   alias NBPR.Buildroot.Source
   alias NBPR.Spdx
 
-  @switches [no_lookup: :boolean, br_package: :string, licenses: :string]
+  @switches [no_lookup: :boolean, br_package: :string, licenses: :string, yes: :boolean]
+  @aliases [y: :yes]
 
   @impl Mix.Task
   def run(args) do
-    {opts, args} = OptionParser.parse!(args, strict: @switches)
+    {opts, args} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
     case args do
       [name] -> generate(name, opts)
@@ -168,7 +174,7 @@ defmodule Mix.Tasks.Nbpr.New do
     {:ok, version} = Buildroot.br_version(nerves_br)
     patches = Buildroot.patches_path(nerves_br) |> ok_value()
 
-    ensure_br_tree_with_prompt!(version)
+    ensure_br_tree_with_prompt!(version, opts)
     br_tree = Source.ensure!(version, patches)
 
     case BrPackage.read(br_tree, br_package_name) do
@@ -213,7 +219,7 @@ defmodule Mix.Tasks.Nbpr.New do
     end
   end
 
-  defp ensure_br_tree_with_prompt!(version) do
+  defp ensure_br_tree_with_prompt!(version, opts) do
     cond do
       Source.cached?(version) ->
         :ok
@@ -221,26 +227,44 @@ defmodule Mix.Tasks.Nbpr.New do
       Source.tarball_cached?(version) ->
         :ok
 
+      assume_yes?(opts) ->
+        Mix.shell().info(download_notice(version))
+
       true ->
         prompt_and_continue!(version)
     end
   end
 
+  @doc false
+  @spec assume_yes?(keyword()) :: boolean()
+  def assume_yes?(opts) do
+    opts[:yes] || env_yes?()
+  end
+
+  defp env_yes? do
+    case System.get_env("MIX_NBPR_YES") do
+      nil -> false
+      value -> String.downcase(value) in ["1", "true", "yes"]
+    end
+  end
+
   defp prompt_and_continue!(version) do
-    tarball = Source.tarball_path(version)
-
-    message =
-      "About to download buildroot-#{version}.tar.gz (~50 MB) to " <>
-        "#{Path.dirname(tarball)}.\n" <>
-        "It will be reused on subsequent `mix nbpr.new` runs.\nContinue?"
-
-    if Mix.shell().yes?(message) do
+    if Mix.shell().yes?(download_notice(version) <> "\nContinue?") do
       :ok
     else
       Mix.raise(
-        "aborted: BR tarball needed for metadata lookup. Re-run with `--no-lookup` to skip."
+        "aborted: BR tarball needed for metadata lookup. Re-run with " <>
+          "`--no-lookup` to skip, or `--yes`/`MIX_NBPR_YES=1` to download non-interactively."
       )
     end
+  end
+
+  defp download_notice(version) do
+    tarball = Source.tarball_path(version)
+
+    "About to download buildroot-#{version}.tar.gz (~50 MB) to " <>
+      "#{Path.dirname(tarball)}.\n" <>
+      "It will be reused on subsequent `mix nbpr.new` runs."
   end
 
   defp resolve_licences!(_br_licences, override) when is_binary(override) do
