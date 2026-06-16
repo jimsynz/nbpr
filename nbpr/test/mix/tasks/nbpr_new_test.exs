@@ -211,6 +211,32 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert mix_exs =~ "Fixturepkg does the thing well."
     end
 
+    test "normalises a leading-zero BR version into valid semver", %{tmp: tmp} do
+      cache_dir =
+        Path.join([System.get_env("NERVES_ARTIFACTS_DIR"), "nbpr", "buildroot", @br_version])
+
+      seed_pkg_in_cache!(cache_dir, "lvm2",
+        mk: """
+        LVM2_VERSION = 2.03.31
+        LVM2_SITE = https://example.com/lvm2
+        LVM2_LICENSE = GPL-2.0-only
+        """,
+        config_in: """
+        config BR2_PACKAGE_LVM2
+        \tbool "lvm2"
+        \thelp
+        \t  Logical volume manager.
+        """
+      )
+
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["lvm2"]) end)
+      end)
+
+      mix_exs = File.read!(Path.join(tmp, "packages/nbpr_lvm2/mix.exs"))
+      assert mix_exs =~ ~s|@version "2.3.31"|
+    end
+
     test "bakes BR-derived data into the lib module", %{tmp: tmp} do
       capture_io(fn ->
         File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["fixturepkg"]) end)

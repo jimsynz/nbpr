@@ -193,6 +193,72 @@ defmodule NBPR.Buildroot.PackageTest do
       assert pkg.dependencies == ["libpcap"]
     end
 
+    test "resolves $(VAR) references in the version against same-file assignments",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "cryptsetup",
+        mk: """
+        CRYPTSETUP_VERSION_MAJOR = 2.8
+        CRYPTSETUP_VERSION = $(CRYPTSETUP_VERSION_MAJOR).4
+        CRYPTSETUP_LICENSE = GPL-2.0
+        """,
+        config_in: ""
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "cryptsetup")
+      assert pkg.version == "2.8.4"
+    end
+
+    test "leaves $(VAR) references literal when the var isn't defined locally",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "weird",
+        mk: """
+        WEIRD_VERSION = $(SOME_GLOBAL).1
+        WEIRD_LICENSE = MIT
+        """,
+        config_in: ""
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "weird")
+      assert pkg.version == "$(SOME_GLOBAL).1"
+    end
+
+    test "joins line-continued _DEPENDENCIES instead of capturing a bare backslash",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "util-linux",
+        mk: """
+        UTIL_LINUX_VERSION = 2.41
+        UTIL_LINUX_LICENSE = GPL-2.0
+        UTIL_LINUX_DEPENDENCIES = \\
+        \thost-pkgconf \\
+        \tlinux-pam \\
+        \tlibblkid
+        """,
+        config_in: """
+        config BR2_PACKAGE_UTIL_LINUX
+        \tbool "util-linux"
+        \thelp
+        \t  System utilities.
+        """
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "util-linux")
+      assert pkg.dependencies == ["linux-pam", "libblkid"]
+    end
+
+    test "strips parenthetical file-scope annotations from licences",
+         %{br_tree: br_tree} do
+      write_pkg!(br_tree, "file",
+        mk: """
+        FILE_VERSION = 5.46
+        FILE_LICENSE = BSD-2-Clause, BSD-3-Clause (vasprintf.c)
+        """,
+        config_in: ""
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "file")
+      assert pkg.licences == ["BSD-2-Clause", "BSD-3-Clause"]
+    end
+
     test "tolerates Config.in missing entirely", %{br_tree: br_tree} do
       pkg_dir = Path.join([br_tree, "package", "minimal"])
       File.mkdir_p!(pkg_dir)

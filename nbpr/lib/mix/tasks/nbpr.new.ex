@@ -587,16 +587,27 @@ defmodule Mix.Tasks.Nbpr.New do
     links = %{br_package_name => homepage, "GitHub" => "https://github.com/#{github_repo}"}
 
     description = pkg.description || "TODO: short description for nbpr_#{br_package_name}"
-    {pad_version(pkg.version), description, inspect(links), pkg.licences}
+    {normalise_version(pkg.version), description, inspect(links), pkg.licences}
   end
 
-  # Buildroot versions like `2.91` aren't valid Hex semver; pad with `.0`.
-  # Already-3-component versions pass through.
-  defp pad_version(version) do
-    case String.split(version, ".") do
-      [_, _] -> version <> ".0"
-      [_] -> version <> ".0.0"
-      _ -> version
+  # Coerces a Buildroot version into valid Hex semver: strips leading zeros
+  # from each numeric segment (`2.03.31` → `2.3.31`, rejected by Mix
+  # otherwise) and pads to three components (`2.91` → `2.91.0`).
+  defp normalise_version(version) do
+    segments = version |> String.split(".") |> Enum.map(&strip_leading_zeros/1)
+
+    case segments do
+      [major] -> "#{major}.0.0"
+      [major, minor] -> "#{major}.#{minor}.0"
+      _ -> Enum.join(segments, ".")
+    end
+  end
+
+  defp strip_leading_zeros(segment) do
+    if segment =~ ~r/^\d+$/ do
+      String.to_integer(segment) |> Integer.to_string()
+    else
+      segment
     end
   end
 
