@@ -24,9 +24,11 @@ defmodule NBPR.Buildroot.Package do
   | `help`         | Raw help block (multi-paragraph)                         |
   | `dependencies` | Target-side BR deps: `<NAME>_DEPENDENCIES` ∪ `select BR2_PACKAGE_*` |
 
-  Variable substitution (e.g. `$(<NAME>_VERSION)` references) is *not*
-  resolved — this reader takes literal RHS values. Adequate for the common
-  case; conditional definitions and computed sites fall back to `nil`.
+  `$(VAR)` references in a scalar value (e.g. `<NAME>_VERSION =
+  $(<NAME>_VERSION_MAJOR).4`) are resolved against assignments in the same
+  `.mk`. References to vars defined elsewhere (BR globals, `$(call ...)`
+  functions) are left literal; conditional definitions and computed sites
+  fall back to `nil`.
 
   ## Dependency extraction
 
@@ -143,10 +145,18 @@ defmodule NBPR.Buildroot.Package do
     |> Enum.uniq()
   end
 
+  # Captures the full logical assignment, joining make line-continuations
+  # (`\` at end of line) so a wrapped `_DEPENDENCIES` list yields its actual
+  # deps rather than a bare `\` token from the first line.
   defp extract_mk_dependencies(content, prefix) do
-    case Regex.run(~r/^#{prefix}_DEPENDENCIES\s*=\s*(.*)$/m, content) do
-      [_, line] -> String.split(line, ~r/\s+/, trim: true)
-      _ -> []
+    case Regex.run(~r/^#{prefix}_DEPENDENCIES\s*=\s*((?:.*\\\n)*.*)/m, content) do
+      [_, block] ->
+        block
+        |> String.replace(~r/\\\n/, " ")
+        |> String.split(~r/\s+/, trim: true)
+
+      _ ->
+        []
     end
   end
 
@@ -168,16 +178,52 @@ defmodule NBPR.Buildroot.Package do
     re = Regex.compile!("^#{Regex.escape(prefix)}_#{suffix}\\s*=\\s*(.*)$", "m")
 
     case Regex.run(re, content) do
-      [_, value] -> {:ok, String.trim(value)}
+      [_, value] -> {:ok, value |> String.trim() |> resolve_make_vars(content)}
       _ -> {:error, {:missing_var, "#{prefix}_#{suffix}"}}
+    end
+  end
+
+  # Substitutes `$(VAR)` references against assignments in the same `.mk`,
+  # e.g. `CRYPTSETUP_VERSION = $(CRYPTSETUP_VERSION_MAJOR).4` with
+  # `CRYPTSETUP_VERSION_MAJOR = 2.8` resolves to `2.8.4`. References to vars
+  # not defined in this file (BR globals, `$(call ...)` functions) are left
+  # literal. Iterates so nested references resolve; the fuel bound stops a
+  # self-referential definition from looping.
+  defp resolve_make_vars(value, content, fuel \\ 10)
+  defp resolve_make_vars(value, _content, 0), do: value
+
+  defp resolve_make_vars(value, content, fuel) do
+    resolved =
+      Regex.replace(~r/\$\(([A-Za-z0-9_]+)\)/, value, fn whole, var ->
+        lookup_var(content, var) || whole
+      end)
+
+    if resolved == value, do: value, else: resolve_make_vars(resolved, content, fuel - 1)
+  end
+
+  defp lookup_var(content, var) do
+    re = Regex.compile!("^#{Regex.escape(var)}\\s*=\\s*(.*)$", "m")
+
+    case Regex.run(re, content) do
+      [_, value] -> String.trim(value)
+      _ -> nil
     end
   end
 
   defp split_licences(str) do
     str
     |> String.split(",")
-    |> Enum.map(&String.trim/1)
+    |> Enum.map(&strip_licence_scope/1)
     |> Enum.reject(&(&1 == ""))
+  end
+
+  # BR `<NAME>_LICENSE` strings annotate file scope in parentheses, e.g.
+  # `BSD-2-Clause, BSD-3-Clause (vasprintf.c)`. The parenthetical isn't part
+  # of the SPDX identifier, so strip it before validation downstream.
+  defp strip_licence_scope(licence) do
+    licence
+    |> String.replace(~r/\s*\([^)]*\)/, "")
+    |> String.trim()
   end
 
   defp parse_config_in(content, var_prefix) do
