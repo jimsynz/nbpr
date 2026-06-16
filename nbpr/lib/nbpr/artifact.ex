@@ -72,7 +72,17 @@ defmodule NBPR.Artifact do
   """
   @spec cache_dir(build_inputs()) :: String.t()
   def cache_dir(%{} = inputs) do
-    Path.join([data_dir(), "nbpr", dir_name(inputs)])
+    Path.join(cache_root(), dir_name(inputs))
+  end
+
+  @doc """
+  Returns the absolute path to the root directory holding all extracted
+  artefact caches (one subdirectory per cache key). Honours the same data-dir
+  resolution as `cache_dir/1`.
+  """
+  @spec cache_root() :: String.t()
+  def cache_root do
+    Path.join(data_dir(), "nbpr")
   end
 
   @doc """
