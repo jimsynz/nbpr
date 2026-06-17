@@ -36,8 +36,9 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   use Mix.Task
 
   alias NBPR.Artifact
-  alias NBPR.Artifact.{Cache, Fetcher}
+  alias NBPR.Artifact.{Cache, Fetcher, LibCheck}
   alias NBPR.Buildroot.Builder
+  alias NBPR.Elf
 
   @requirements ["app.config"]
 
@@ -65,7 +66,52 @@ defmodule Mix.Tasks.Nbpr.Fetch do
           "[nbpr] installed #{length(packages)} package(s) into priv for " <>
             "#{system_app} #{system_version}."
         )
+
+        check_shared_libraries(packages)
     end
+  end
+
+  # Scans the just-staged packages for DT_NEEDED shared libraries that neither
+  # the base system nor any nbpr package in this firmware provides, and warns
+  # with the full list — so a missing `.so` surfaces at build time rather than
+  # one boot at a time. Non-fatal: a gate can come once it's proven out.
+  defp check_shared_libraries(packages) do
+    base_dirs = LibCheck.base_lib_dirs(apply(Nerves.Env, :system_path, []))
+
+    cond do
+      not Elf.available?() ->
+        Mix.shell().info("[nbpr] readelf not found; skipping shared-library check")
+
+      base_dirs == [] ->
+        Mix.shell().info("[nbpr] base system libraries not found; skipping shared-library check")
+
+      true ->
+        staged = Enum.map(packages, fn {app, _module} -> {app, priv_dir_for(app)} end)
+
+        case LibCheck.missing(base_dirs, staged) do
+          [] -> :ok
+          missing -> warn_missing_libraries(missing)
+        end
+    end
+  end
+
+  defp warn_missing_libraries(missing) do
+    details =
+      Enum.map_join(missing, "\n", fn {app, sonames} ->
+        "  #{app} requires the following missing shared libraries: #{Enum.join(sonames, ", ")}"
+      end)
+
+    Mix.shell().info("""
+
+    Warning: shared libraries required by staged nbpr packages aren't provided
+    by the base system or any nbpr package in this firmware:
+
+    #{details}
+
+    Add the nbpr package that ships each library to your deps (or scaffold one
+    with `mix nbpr.new <pkg>`); without it the binary will fail to load at
+    runtime.
+    """)
   end
 
   @doc false
@@ -148,17 +194,13 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   end
 
   defp fetch_or_build!(pkg, inputs) do
-    Mix.shell().info(
-      "[nbpr] fetching #{inputs.package_name}-#{inputs.package_version}..."
-    )
+    Mix.shell().info("[nbpr] fetching #{inputs.package_name}-#{inputs.package_version}...")
 
     try do
       Fetcher.fetch!(inputs, pkg.artifact_sites)
     rescue
       e in RuntimeError ->
-        Mix.shell().info(
-          "[nbpr] no prebuilt artefact found; falling back to source-build"
-        )
+        Mix.shell().info("[nbpr] no prebuilt artefact found; falling back to source-build")
 
         Mix.shell().info("[nbpr] (fetch error: #{first_line(Exception.message(e))})")
 
