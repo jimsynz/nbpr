@@ -101,7 +101,7 @@ defmodule NBPR.Artifact.Cache do
   @spec extract!(Path.t(), Artifact.build_inputs()) :: :ok
   def extract!(tarball_path, %{} = inputs) do
     cache_dir = Artifact.cache_dir(inputs)
-    tmp_dir = staging_dir()
+    tmp_dir = staging_dir(cache_dir)
 
     File.mkdir_p!(tmp_dir)
 
@@ -149,7 +149,14 @@ defmodule NBPR.Artifact.Cache do
     end
   end
 
-  defp staging_dir do
-    Path.join(System.tmp_dir!(), "nbpr_extract_#{System.unique_integer([:positive])}")
+  # Stage as a sibling of the destination, not under `System.tmp_dir!/0`: the
+  # final step is a rename into the cache dir, and an atomic rename only works
+  # within one filesystem. `/tmp` is frequently a separate mount (tmpfs) from
+  # the user's data dir, which would make the rename fail with `:exdev`
+  # (cross-device).
+  @doc false
+  @spec staging_dir(Path.t()) :: Path.t()
+  def staging_dir(cache_dir) do
+    Path.join(Path.dirname(cache_dir), ".extract-#{System.unique_integer([:positive])}")
   end
 end

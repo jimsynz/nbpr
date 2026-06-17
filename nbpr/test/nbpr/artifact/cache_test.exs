@@ -35,6 +35,15 @@ defmodule NBPR.Artifact.CacheTest do
     end
   end
 
+  describe "staging_dir/1" do
+    test "is a sibling of the cache dir so the final rename stays on one filesystem" do
+      cache_dir = NBPR.Artifact.cache_dir(@inputs)
+      staging = NBPR.Artifact.Cache.staging_dir(cache_dir)
+
+      assert Path.dirname(staging) == Path.dirname(cache_dir)
+    end
+  end
+
   describe "extract!/2" do
     test "extracts a valid tarball with a single top-level directory" do
       tarball =
