@@ -136,7 +136,7 @@ defmodule NBPR.Buildroot.Source do
 
   defp extract_and_install!(version, tarball, patches_dir) do
     cache = cache_dir(version)
-    staging = make_tmp_dir!()
+    staging = staging_dir!(cache)
 
     try do
       extract_tar!(tarball, staging)
@@ -173,8 +173,12 @@ defmodule NBPR.Buildroot.Source do
     end
   end
 
-  defp make_tmp_dir! do
-    dir = Path.join(System.tmp_dir!(), "nbpr_br_source_#{System.unique_integer([:positive])}")
+  # Stage as a sibling of the destination, not under `System.tmp_dir!/0`: the
+  # final step renames the extracted tree into the cache, and an atomic rename
+  # only works within one filesystem. `/tmp` is frequently a separate mount
+  # (tmpfs) from the data dir, which would fail with `:exdev` (cross-device).
+  defp staging_dir!(cache_dir) do
+    dir = Path.join(Path.dirname(cache_dir), ".extract-#{System.unique_integer([:positive])}")
     File.mkdir_p!(dir)
     dir
   end
