@@ -26,7 +26,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # Check out latest main rather than the build's head_sha — we want
           # whatever logic and version metadata is current, not a snapshot
