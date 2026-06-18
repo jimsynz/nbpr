@@ -11,7 +11,7 @@ jobs:
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Test matrix = the library plus every package directory. No Mix
       # involved — globbing is sufficient and keeps this job network-free
@@ -39,7 +39,7 @@ jobs:
     name: test (${{ matrix.dir }})
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: erlef/setup-beam@v1
         with:
