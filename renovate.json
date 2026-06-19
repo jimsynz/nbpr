@@ -22,7 +22,7 @@
   "customDatasources": {
     "buildroot-package": {
       "description": "Reads `package/<pkg>/<pkg>.mk` from buildroot/buildroot at the BR_REF pinned in the URL below, base64-decodes the file, and extracts the first `<PKG>_VERSION = <semver>` line. BR_REF is itself tracked by the `nerves-system-br-buildroot-version` datasource — Renovate updates this URL automatically when nerves_system_br/main bumps its NERVES_BR_VERSION pin.",
-      "defaultRegistryUrlTemplate": "https://api.github.com/repos/buildroot/buildroot/contents/package/{{packageName}}/{{packageName}}.mk?ref=2026.02.2",
+      "defaultRegistryUrlTemplate": "https://api.github.com/repos/buildroot/buildroot/contents/package/{{packageName}}/{{packageName}}.mk?ref=2026.02.3",
       "format": "json",
       "transformTemplates": [
         "{ \"releases\": [ { \"version\": $match($base64decode(content), /^[A-Z][A-Z0-9_]*_VERSION\\s*=\\s*([\\d.]+)/m).groups[0] } ] }"
