@@ -24,6 +24,25 @@ defmodule Mix.Tasks.Nbpr.ReleasableTest do
       assert Enum.find(result, &(&1.name == "nbpr_tcpdump")).tag == "nbpr_tcpdump-v4.99.5"
     end
 
+    test "normalises a two-component @version so the tag and Hex comparison match what ships" do
+      root =
+        build_workspace!(%{
+          "nbpr" => {"0.1.0", []},
+          "nbpr_dnsmasq" => {"2.92", [:nbpr]}
+        })
+
+      hex = fn
+        "nbpr" -> {:ok, "0.1.0"}
+        "nbpr_dnsmasq" -> {:ok, "2.91.0"}
+      end
+
+      [entry] = Releasable.compute(root, hex)
+
+      assert entry.name == "nbpr_dnsmasq"
+      assert entry.version == "2.92.0"
+      assert entry.tag == "nbpr_dnsmasq-v2.92.0"
+    end
+
     test "skips packages whose local version matches Hex" do
       root =
         build_workspace!(%{

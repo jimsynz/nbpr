@@ -1,15 +1,17 @@
 defmodule Nbpr.Dnsmasq.MixProject do
   use Mix.Project
 
-  # Upstream dnsmasq is `2.91` (no patch component); we pad to `.0` for Hex's
-  # required semver shape. Bumps for nbpr-side rebuilds of the same upstream
+  # Tracks upstream dnsmasq, which is often two-component (e.g. `2.91`, `2.92`).
+  # Renovate bumps this attribute straight to Buildroot's value, so it may not
+  # be a valid Hex version on its own — `normalise_version/1` pads it to the
+  # three-component shape Hex requires. nbpr-side rebuilds of the same upstream
   # version go in the patch position: `2.91.1`, `2.91.2`, etc.
   @version "2.91.0"
 
   def project do
     [
       app: :nbpr_dnsmasq,
-      version: @version,
+      version: normalise_version(@version),
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -55,4 +57,13 @@ defmodule Nbpr.Dnsmasq.MixProject do
 
   defp nbpr_dep_path(:nbpr), do: "../../nbpr"
   defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
+
+  # Pads a two-component upstream version (`2.92`) to Hex's required
+  # three-component shape (`2.92.0`); leaves a complete version untouched.
+  defp normalise_version(version) do
+    case String.split(version, ".") do
+      [major, minor] -> "#{major}.#{minor}.0"
+      _ -> version
+    end
+  end
 end

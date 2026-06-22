@@ -67,7 +67,7 @@
     },
     {
       "customType": "regex",
-      "description": "nbpr_dnsmasq @version → Buildroot's `DNSMASQ_VERSION` line. Buildroot ships e.g. `2.91`; the package's @version pads to `2.91.0` for Hex's required semver shape, so the bump PR will need a manual edit to re-pad. semver-coerced versioning makes the comparison work.",
+      "description": "nbpr_dnsmasq @version → Buildroot's `DNSMASQ_VERSION` line. Buildroot ships e.g. `2.91`/`2.92` (two-component); the package's mix.exs `normalise_version/1` pads `@version` to Hex's three-component shape at load time, so a raw bump like `2.92` loads and publishes cleanly with no manual re-pad. semver-coerced versioning makes the comparison work.",
       "managerFilePatterns": [
         "/^packages/nbpr_dnsmasq/mix\\.exs$/"
       ],

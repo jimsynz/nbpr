@@ -141,8 +141,19 @@ defmodule Mix.Tasks.Nbpr.Releasable do
 
   defp extract_version!(contents, mix_path) do
     case Regex.run(~r/@version\s+"([^"]+)"/, contents) do
-      [_, version] -> version
+      [_, version] -> normalise_version(version)
       _ -> Mix.raise("no @version declaration in #{mix_path}")
+    end
+  end
+
+  # Mirrors the per-package `mix.exs` normalisation: a package's `@version` may
+  # be a bare upstream value (e.g. Renovate writing `2.92`), but the package
+  # publishes — and is tagged — under the padded three-component form. Pad here
+  # so the release tag and the Hex-version poll match what actually ships.
+  defp normalise_version(version) do
+    case String.split(version, ".") do
+      [major, minor] -> "#{major}.#{minor}.0"
+      _ -> version
     end
   end
 
