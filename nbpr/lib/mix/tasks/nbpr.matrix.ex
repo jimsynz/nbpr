@@ -8,6 +8,13 @@ defmodule Mix.Tasks.Nbpr.Matrix do
 
       mix nbpr.matrix [--json] [--root <path>]
 
+  ## Kernel packages are excluded
+
+  Kernel-replacement packages (`kind: :kernel`, e.g. `nbpr_linux`) are skipped.
+  Their artefact depends on the consuming project's own config fragments and
+  patches, so there's no shareable prebuilt to build or publish — they're
+  always source-built in the project that uses them.
+
   ## Output
 
   Without flags: human-readable lines, one per matrix entry.
@@ -98,8 +105,22 @@ defmodule Mix.Tasks.Nbpr.Matrix do
     |> Enum.sort()
     |> case do
       [] -> Mix.raise("no `packages/nbpr_*` directories found under #{root}")
-      pkgs -> pkgs
+      pkgs -> Enum.reject(pkgs, &kernel_package?/1)
     end
+  end
+
+  @doc false
+  # Kernel packages have no shareable prebuilt (the artefact is keyed on the
+  # consuming project's config), so they don't belong in the publish matrix.
+  # Reads the package's declared `:kind`; defaults to "included" if the module
+  # can't be loaded, so a build issue never silently drops a userspace package.
+  @spec kernel_package?(String.t()) :: boolean()
+  def kernel_package?(package) do
+    module = Module.concat([module_for(package)])
+
+    Code.ensure_loaded?(module) and
+      function_exported?(module, :__nbpr_package__, 0) and
+      module.__nbpr_package__().kind == :kernel
   end
 
   defp prebuild_systems!(root) do

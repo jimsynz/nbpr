@@ -64,6 +64,7 @@ defmodule NBPR.MixProject do
         "../CONTRIBUTING.md",
         "../docs/tutorials/getting-started.md",
         "../docs/howto/add-a-buildroot-package.md",
+        "../docs/howto/customise-the-kernel.md",
         "../docs/reference/catalogue.md",
         "../docs/explanation/why-nbpr.md",
         "../docs/explanation/packaging-model.md"

@@ -48,6 +48,8 @@ defmodule Mix.Tasks.Nbpr.Build do
   alias NBPR.Artifact.Cache
   alias NBPR.Artifact.Resolvers.GHCR
   alias NBPR.Buildroot.Builder
+  alias NBPR.Linux.Builder, as: KernelBuilder
+  alias NBPR.Linux.Config, as: KernelConfig
 
   @requirements ["app.config"]
 
@@ -86,7 +88,7 @@ defmodule Mix.Tasks.Nbpr.Build do
     tarball =
       case maybe_reuse_cached(pkg, inputs, output_dir, opts[:force]) do
         {:ok, path} -> path
-        :miss -> Builder.build!(pkg, inputs, output_dir)
+        :miss -> build!(pkg, inputs, output_dir)
       end
 
     :ok = Cache.extract!(tarball, inputs)
@@ -147,6 +149,11 @@ defmodule Mix.Tasks.Nbpr.Build do
     :miss
   end
 
+  defp build!(%{kind: :kernel} = pkg, inputs, output_dir),
+    do: KernelBuilder.build!(pkg, inputs, output_dir)
+
+  defp build!(pkg, inputs, output_dir), do: Builder.build!(pkg, inputs, output_dir)
+
   defp parse_positional!([module]), do: module
   defp parse_positional!(_), do: Mix.raise("usage: mix nbpr.build <Module> [-o <dir>]")
 
@@ -189,6 +196,10 @@ defmodule Mix.Tasks.Nbpr.Build do
   # two tasks derive the same artefact cache key for the same package config —
   # otherwise `nbpr.build` would populate a cache dir that `nbpr.fetch` never
   # looks up.
+  defp resolve_build_opts(%{kind: :kernel}, package_app, _opts) do
+    KernelConfig.build_opts(package_app)
+  end
+
   defp resolve_build_opts(pkg, package_app, opts) do
     config = Application.get_env(package_app, :build_opts, [])
     user = Keyword.merge(config, cli_build_opts(opts))

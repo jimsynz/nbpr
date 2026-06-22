@@ -9,7 +9,7 @@ defmodule NBPR.Pack do
   drops a `manifest.json` next to them, and tarballs into a file named per
   `NBPR.Artifact.tarball_name/1`.
 
-  The four sources are routed differently at install time:
+  The source categories are routed differently at install time:
 
   - `target/` → installed into the package's `priv/` (binaries, libraries,
     package-specific configs)
@@ -18,6 +18,9 @@ defmodule NBPR.Pack do
   - `rootfs/` → installed into Nerves' `build_rootfs_overlay` so the files
     end up at standard rootfs paths in the firmware (kernel modules,
     daemons that hardcode `/etc/foo.conf`, etc.)
+  - `boot/` → kernel image and device trees; installed into a shadow
+    `NERVES_SYSTEM/images/` (they can't ride a rootfs overlay — `fwup` reads
+    them by absolute system path). See `NBPR.Linux.Shadow`.
   - `legal-info/` → licence aggregation
 
   Pure I/O on the local filesystem; no network, no Buildroot. Source-build
@@ -31,6 +34,7 @@ defmodule NBPR.Pack do
           optional(:target) => Path.t(),
           optional(:staging) => Path.t(),
           optional(:rootfs) => Path.t(),
+          optional(:boot) => Path.t(),
           optional(:legal_info) => Path.t()
         }
 
@@ -66,7 +70,7 @@ defmodule NBPR.Pack do
       [:json.encode(Artifact.manifest(inputs)), ?\n]
     )
 
-    Enum.each([:target, :staging, :rootfs, :legal_info], fn key ->
+    Enum.each([:target, :staging, :rootfs, :boot, :legal_info], fn key ->
       copy_source!(sources, key, inner)
     end)
   end
@@ -90,6 +94,7 @@ defmodule NBPR.Pack do
   defp dest_name(:target), do: "target"
   defp dest_name(:staging), do: "staging"
   defp dest_name(:rootfs), do: "rootfs"
+  defp dest_name(:boot), do: "boot"
   defp dest_name(:legal_info), do: "legal-info"
 
   defp tar!(staging_dir, top_level_name, tar_path) do

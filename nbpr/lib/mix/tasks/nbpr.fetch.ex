@@ -39,6 +39,8 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   alias NBPR.Artifact.{Cache, Fetcher, LibCheck}
   alias NBPR.Buildroot.Builder
   alias NBPR.Elf
+  alias NBPR.Linux.Builder, as: KernelBuilder
+  alias NBPR.Linux.{Config, Shadow}
 
   @requirements ["app.config"]
 
@@ -189,8 +191,36 @@ defmodule Mix.Tasks.Nbpr.Fetch do
 
     cache_dir = Artifact.cache_dir(inputs)
 
+    install_artefact!(pkg, cache_dir, app)
+  end
+
+  # Userspace packages stage into priv/ (binaries) + the rootfs overlay
+  # (hardcoded-path configs). Kernel packages put modules on the rootfs overlay
+  # and inject the image/DTBs via a shadow NERVES_SYSTEM.
+  defp install_artefact!(%{kind: :kernel}, cache_dir, _app) do
+    install_rootfs!(cache_dir)
+    install_kernel!(cache_dir)
+  end
+
+  defp install_artefact!(_pkg, cache_dir, app) do
     install_target!(cache_dir, app)
     install_rootfs!(cache_dir)
+  end
+
+  # Builds a shadow NERVES_SYSTEM whose images/ carry our kernel, and points
+  # NERVES_SYSTEM at it. Runs before the `firmware` task in the same OS process
+  # (via the :firmware alias), so the env var is visible when rel2fw/fwup read
+  # it. The shared artefact cache is never mutated — the shadow is symlinks.
+  defp install_kernel!(cache_dir) do
+    boot = Path.join(cache_dir, "boot")
+
+    if File.dir?(boot) do
+      system_path = apply(Nerves.Env, :system_path, [])
+      shadow = Path.join([Mix.Project.build_path(), "nerves", "nbpr_system_shadow"])
+      Shadow.build!(system_path, boot, shadow)
+      System.put_env("NERVES_SYSTEM", shadow)
+      Mix.shell().info("[nbpr] kernel injected; NERVES_SYSTEM -> #{shadow}")
+    end
   end
 
   defp fetch_or_build!(pkg, inputs) do
@@ -205,9 +235,14 @@ defmodule Mix.Tasks.Nbpr.Fetch do
         Mix.shell().info("[nbpr] (fetch error: #{first_line(Exception.message(e))})")
 
         output_dir = Path.join(Mix.Project.build_path(), "nbpr")
-        Builder.build!(pkg, inputs, output_dir)
+        build_fallback!(pkg, inputs, output_dir)
     end
   end
+
+  defp build_fallback!(%{kind: :kernel} = pkg, inputs, output_dir),
+    do: KernelBuilder.build!(pkg, inputs, output_dir)
+
+  defp build_fallback!(pkg, inputs, output_dir), do: Builder.build!(pkg, inputs, output_dir)
 
   defp first_line(msg) do
     msg |> String.split("\n", trim: true) |> List.first() || msg
@@ -219,6 +254,8 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   # `build_opts: [curl_cli: [default: true, ...]]` resolves the same key
   # whether or not the user set anything, which keeps `mix nbpr.fetch`
   # and `mix nbpr.build` in sync.
+  defp resolve_build_opts(%{kind: :kernel}, app), do: Config.build_opts(app)
+
   defp resolve_build_opts(pkg, app) do
     user = Application.get_env(app, :build_opts, [])
 
