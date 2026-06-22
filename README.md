@@ -25,8 +25,9 @@ intent ([Diátaxis](https://diataxis.fr/)):
 - **Tutorials** — learning-oriented walkthroughs.
   [Getting started](https://hexdocs.pm/nbpr/getting-started.html) takes
   you from a fresh Nerves project to a device with `jq` working.
-- **How-to guides** — task-oriented recipes. Currently:
-  [Add a Buildroot package to NBPR](https://hexdocs.pm/nbpr/add-a-buildroot-package.html).
+- **How-to guides** — task-oriented recipes:
+  [Add a Buildroot package to NBPR](https://hexdocs.pm/nbpr/add-a-buildroot-package.html)
+  and [Customise the Linux kernel in a project](https://hexdocs.pm/nbpr/customise-the-kernel.html).
 - **Reference** — the [catalogue](https://hexdocs.pm/nbpr/catalogue.html)
   of available binary packages, plus moduledocs and Mix-task docs in the
   API reference.
