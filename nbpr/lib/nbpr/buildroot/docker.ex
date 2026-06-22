@@ -129,6 +129,64 @@ defmodule NBPR.Buildroot.Docker do
     end
   end
 
+  @doc """
+  Runs a kernel rebuild (`make linux`) inside a container.
+
+  Unlike `build!/1` (userspace per-package builds), this runs the kernel
+  target and copies the kernel's `images/` and `target/lib/modules` out of
+  the build volume into `extract_dir`, in the layout `NBPR.Linux.Harvest`
+  expects. Returns `extract_dir`.
+
+  The user's config fragments and patches are expected to already live under
+  a bind-mounted path (e.g. inside `extract_dir`) and be referenced by the
+  rendered defconfig; this function does not stage them.
+
+  Required opts: `:br_source`, `:build_path`, `:volume`, `:extract_dir`,
+  `:defconfig_text`, `:env`. Optional: `:extra_mounts`.
+  """
+  @spec build_kernel!(keyword()) :: Path.t()
+  def build_kernel!(opts) do
+    ensure_available!()
+
+    br_source = Keyword.fetch!(opts, :br_source)
+    build_path = Keyword.fetch!(opts, :build_path)
+    volume = Keyword.fetch!(opts, :volume)
+    extract_dir = Keyword.fetch!(opts, :extract_dir)
+    defconfig_text = Keyword.fetch!(opts, :defconfig_text)
+    env = Keyword.get(opts, :env, [])
+    extra_mounts = Keyword.get(opts, :extra_mounts, [])
+
+    File.mkdir_p!(extract_dir)
+    defconfig_host_file = Path.join(extract_dir, "_nbpr_defconfig.in")
+    File.write!(defconfig_host_file, defconfig_text)
+
+    bind_mount_paths =
+      [extract_dir, br_source | extra_mounts]
+      |> Enum.concat(env_paths(env))
+      |> Enum.uniq()
+      |> Enum.filter(&File.exists?/1)
+
+    bash_script = kernel_build_script(build_path, defconfig_host_file, br_source, extract_dir)
+
+    host_uid = user_id()
+    host_gid = group_id()
+
+    docker_args =
+      ["run", "--rm", "--user", "0:0"] ++
+        ["-v", "#{volume}:#{build_path}"] ++
+        Enum.flat_map(bind_mount_paths, fn p -> ["-v", "#{p}:#{p}"] end) ++
+        env_args(env) ++
+        ["-e", "HOST_UID=#{host_uid}", "-e", "HOST_GID=#{host_gid}"] ++
+        [@image, "bash", "-c", bash_script]
+
+    Mix.shell().info("[nbpr] running kernel build in docker (volume #{volume})")
+
+    case System.cmd("docker", docker_args, stderr_to_stdout: true, into: IO.stream(:stdio, :line)) do
+      {_, 0} -> extract_dir
+      {_, status} -> raise "kernel Buildroot build (in docker) failed with exit status #{status}"
+    end
+  end
+
   @doc false
   @spec volume_name(String.t()) :: String.t()
   def volume_name(slug) when is_binary(slug) do
@@ -235,6 +293,34 @@ defmodule NBPR.Buildroot.Docker do
     # Make the extracted output owned by the host user so the Mix task
     # (running as that user) can read it. The volume itself stays root-owned
     # — that's fine, we never read it directly from the host.
+    chown -R "${HOST_UID}:${HOST_GID}" #{shell_quote(extract_dir)}
+    """
+  end
+
+  defp kernel_build_script(build_path, defconfig_host, br_source, extract_dir) do
+    """
+    set -euo pipefail
+
+    cp #{shell_quote(defconfig_host)} #{shell_quote(build_path)}/.config
+
+    cd #{shell_quote(br_source)}
+    make O=#{shell_quote(build_path)} olddefconfig
+    make O=#{shell_quote(build_path)} linux
+
+    # Copy the kernel outputs out of the (root-owned, non-host-readable) build
+    # volume into the bind-mounted extract dir, in the layout
+    # NBPR.Linux.Harvest reads: images/ (kernel image + DTBs) and
+    # target/lib/modules. Only `make linux` ran in this volume, so images/
+    # holds just the kernel's own outputs.
+    rm -rf #{shell_quote(extract_dir)}/images #{shell_quote(extract_dir)}/target
+    mkdir -p #{shell_quote(extract_dir)}/images
+    cp -a #{shell_quote(build_path)}/images/. #{shell_quote(extract_dir)}/images/
+
+    if [ -d #{shell_quote(build_path)}/target/lib/modules ]; then
+      mkdir -p #{shell_quote(extract_dir)}/target/lib
+      cp -a #{shell_quote(build_path)}/target/lib/modules #{shell_quote(extract_dir)}/target/lib/modules
+    fi
+
     chown -R "${HOST_UID}:${HOST_GID}" #{shell_quote(extract_dir)}
     """
   end

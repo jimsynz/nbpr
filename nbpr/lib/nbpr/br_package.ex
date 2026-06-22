@@ -73,6 +73,12 @@ defmodule NBPR.BrPackage do
                        doc:
                          "Path to a vendored BR external tree. Mutually exclusive with `:br_package`."
                      ],
+                     kernel: [
+                       type: :boolean,
+                       default: false,
+                       doc:
+                         "Marks a kernel-replacement package. Rebuilds the active Nerves system's Linux kernel with extra config fragments and patches (declared in application config), instead of building a userspace BR package. Mutually exclusive with `:br_package`/`:br_external_path`/`:daemons`/`:kernel_modules`."
+                     ],
                      description: [
                        type: :string,
                        required: true,
@@ -147,7 +153,7 @@ defmodule NBPR.BrPackage do
   @spec build_metadata!(keyword(), module()) :: Package.t()
   def build_metadata!(use_opts, caller_module) do
     validated = NimbleOptions.validate!(use_opts, @use_opts_schema)
-    validate_br_source!(validated)
+    validate_source!(validated)
 
     {build_opts_clean, build_opt_extensions} =
       split_extensions(validated[:build_opts], [:br_flag])
@@ -157,6 +163,7 @@ defmodule NBPR.BrPackage do
     %Package{
       name: derive_name(caller_module),
       version: validated[:version],
+      kind: if(validated[:kernel], do: :kernel, else: :userspace),
       module: caller_module,
       description: validated[:description],
       homepage: validated[:homepage],
@@ -203,6 +210,28 @@ defmodule NBPR.BrPackage do
       opt_flags: opt_flags,
       argv_template: spec[:argv_template]
     }
+  end
+
+  defp validate_source!(validated) do
+    if validated[:kernel], do: validate_kernel!(validated), else: validate_br_source!(validated)
+  end
+
+  defp validate_kernel!(validated) do
+    conflicts =
+      [
+        br_package: validated[:br_package],
+        br_external_path: validated[:br_external_path],
+        daemons: validated[:daemons],
+        kernel_modules: validated[:kernel_modules]
+      ]
+      |> Enum.filter(fn {_k, v} -> v not in [nil, []] end)
+      |> Enum.map(fn {k, _v} -> k end)
+
+    unless conflicts == [] do
+      raise ArgumentError,
+            "NBPR.BrPackage: `kernel: true` is mutually exclusive with " <>
+              "#{Enum.map_join(conflicts, ", ", &inspect/1)}"
+    end
   end
 
   defp validate_br_source!(validated) do

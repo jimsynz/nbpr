@@ -11,9 +11,12 @@ defmodule NBPR.Package do
 
   @type artifact_site :: {:github_releases, String.t()} | {:ghcr, String.t()}
 
+  @type kind :: :userspace | :kernel
+
   @type t :: %__MODULE__{
           name: atom(),
           version: pos_integer(),
+          kind: kind(),
           module: module(),
           description: String.t(),
           homepage: String.t() | nil,
@@ -26,18 +29,17 @@ defmodule NBPR.Package do
           artifact_sites: [artifact_site()]
         }
 
-  defstruct [
-    :name,
-    :version,
-    :module,
-    :description,
-    :homepage,
-    :br_package,
-    :br_external_path,
-    :build_opts,
-    :build_opt_extensions,
-    :daemons,
-    :kernel_modules,
-    :artifact_sites
-  ]
+  defstruct name: nil,
+            version: nil,
+            kind: :userspace,
+            module: nil,
+            description: nil,
+            homepage: nil,
+            br_package: nil,
+            br_external_path: nil,
+            build_opts: [],
+            build_opt_extensions: %{},
+            daemons: [],
+            kernel_modules: [],
+            artifact_sites: []
 end
