@@ -6,7 +6,7 @@ defmodule Nbpr.Jq.MixProject do
   def project do
     [
       app: :nbpr_jq,
-      version: @version,
+      version: normalise_version(@version),
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -52,4 +52,13 @@ defmodule Nbpr.Jq.MixProject do
 
   defp nbpr_dep_path(:nbpr), do: "../../nbpr"
   defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
+
+  # Renovate bumps @version straight to Buildroot's upstream value, which can
+  # be two-component (e.g. `1.7`); pad to Hex's required three-component shape.
+  defp normalise_version(version) do
+    case String.split(version, ".") do
+      [major, minor] -> "#{major}.#{minor}.0"
+      _ -> version
+    end
+  end
 end
