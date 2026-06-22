@@ -137,6 +137,11 @@ defmodule NBPR.Artifact.Cache do
           raise "tarball must contain a single top-level directory; found a file named #{single}"
         end
 
+        Enum.each(["target", "rootfs"], fn sub ->
+          dir = Path.join(inner, sub)
+          if File.dir?(dir), do: normalise_symlinks!(dir)
+        end)
+
         File.mkdir_p!(Path.dirname(cache_dir))
         if File.exists?(cache_dir), do: File.rm_rf!(cache_dir)
         File.rename!(inner, cache_dir)
@@ -146,6 +151,49 @@ defmodule NBPR.Artifact.Cache do
 
       others ->
         raise "tarball must contain a single top-level directory; found #{length(others)} entries"
+    end
+  end
+
+  # Buildroot occasionally emits absolute symlinks that cross top-level
+  # directories (e.g. `usr/bin/iptables-xml` → `/usr/sbin/xtables-legacy-multi`).
+  # The absolute target is valid on-device but dangles on the build host, which
+  # breaks the consuming project's `mix firmware`: `Mix.Release.copy_app/2`
+  # copies each app's `priv/` with `dereference_symlinks: true` and aborts on a
+  # dangling link. Rewriting such links — whose target resolves inside the
+  # artefact tree — to the equivalent relative form resolves identically on the
+  # host and on-device. Genuinely external absolute links (no in-tree target)
+  # are left untouched.
+  @doc false
+  @spec normalise_symlinks!(Path.t()) :: :ok
+  def normalise_symlinks!(root) do
+    root
+    |> walk_symlinks()
+    |> Enum.each(&normalise_symlink!(&1, root))
+  end
+
+  defp walk_symlinks(dir) do
+    dir
+    |> File.ls!()
+    |> Enum.flat_map(fn entry ->
+      path = Path.join(dir, entry)
+
+      case File.lstat(path) do
+        {:ok, %File.Stat{type: :symlink}} -> [path]
+        {:ok, %File.Stat{type: :directory}} -> walk_symlinks(path)
+        _ -> []
+      end
+    end)
+  end
+
+  defp normalise_symlink!(link, root) do
+    with {:ok, "/" <> _ = target} <- File.read_link(link),
+         resolved = Path.join(root, target),
+         true <- File.exists?(resolved) do
+      relative = Path.relative_to(resolved, Path.dirname(link), force: true)
+      File.rm!(link)
+      File.ln_s!(relative, link)
+    else
+      _ -> :ok
     end
   end
 

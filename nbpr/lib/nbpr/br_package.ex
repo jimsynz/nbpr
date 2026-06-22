@@ -57,6 +57,8 @@ defmodule NBPR.BrPackage do
 
   @current_version 1
 
+  @runtime_env_placeholders ["NBPR_PRIV"]
+
   @use_opts_schema NimbleOptions.new!(
                      version: [
                        type: {:in, [@current_version]},
@@ -95,6 +97,12 @@ defmodule NBPR.BrPackage do
                        default: [],
                        doc:
                          "Out-of-tree kernel modules. Triggers generation of an Application that runs `modprobe` at boot on Nerves targets."
+                     ],
+                     runtime_env: [
+                       type: {:list, {:tuple, [:string, :string]}},
+                       default: [],
+                       doc:
+                         "Environment variables exported into the BEAM env at boot (so child processes spawned via MuonTrap or `System.cmd/2` inherit them). Values may interpolate `${NBPR_PRIV}`, which expands to this package's priv dir — e.g. `{\"XTABLES_LIBDIR\", \"${NBPR_PRIV}/usr/lib/xtables\"}` so `iptables` finds its extension objects. Multiple packages setting the same var are colon-joined, like `PATH`."
                      ],
                      artifact_sites: [
                        type: {:list, {:tuple, [{:in, [:github_releases, :ghcr]}, :string]}},
@@ -148,6 +156,7 @@ defmodule NBPR.BrPackage do
   def build_metadata!(use_opts, caller_module) do
     validated = NimbleOptions.validate!(use_opts, @use_opts_schema)
     validate_br_source!(validated)
+    validate_runtime_env!(validated[:runtime_env])
 
     {build_opts_clean, build_opt_extensions} =
       split_extensions(validated[:build_opts], [:br_flag])
@@ -166,6 +175,7 @@ defmodule NBPR.BrPackage do
       build_opt_extensions: build_opt_extensions,
       daemons: daemons,
       kernel_modules: validated[:kernel_modules],
+      runtime_env: validated[:runtime_env],
       artifact_sites: validated[:artifact_sites]
     }
   end
@@ -218,6 +228,23 @@ defmodule NBPR.BrPackage do
       _ ->
         :ok
     end
+  end
+
+  defp validate_runtime_env!(runtime_env) do
+    Enum.each(runtime_env, fn {var, template} ->
+      ~r/\$\{([^}]+)\}/
+      |> Regex.scan(template, capture: :all_but_first)
+      |> List.flatten()
+      |> Enum.each(fn name ->
+        unless name in @runtime_env_placeholders do
+          allowed = Enum.map_join(@runtime_env_placeholders, ", ", &"${#{&1}}")
+
+          raise ArgumentError,
+                "NBPR.BrPackage: runtime_env #{inspect(var)} references unknown " <>
+                  "placeholder ${#{name}}; allowed: #{allowed}"
+        end
+      end)
+    end)
   end
 
   defp split_extensions(schema, extension_keys) do

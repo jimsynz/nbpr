@@ -23,6 +23,7 @@ defmodule NBPR.Package do
           build_opt_extensions: %{atom() => map()},
           daemons: [Daemon.t()],
           kernel_modules: [String.t()],
+          runtime_env: [{String.t(), String.t()}],
           artifact_sites: [artifact_site()]
         }
 
@@ -38,6 +39,7 @@ defmodule NBPR.Package do
     :build_opt_extensions,
     :daemons,
     :kernel_modules,
+    :runtime_env,
     :artifact_sites
   ]
 end

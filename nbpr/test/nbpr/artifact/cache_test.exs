@@ -102,6 +102,52 @@ defmodule NBPR.Artifact.CacheTest do
         NBPR.Artifact.Cache.extract!("/nonexistent/path.tar.gz", @inputs)
       end
     end
+
+    test "rewrites a dangling in-tree absolute symlink to a relative one" do
+      tmp = make_tmp_dir!()
+      inner = Path.join(tmp, NBPR.Artifact.dir_name(@inputs))
+      File.mkdir_p!(Path.join(inner, "target/usr/bin"))
+      File.mkdir_p!(Path.join(inner, "target/usr/sbin"))
+      File.write!(Path.join(inner, "target/usr/sbin/xtables-legacy-multi"), "bin")
+
+      File.ln_s!(
+        "/usr/sbin/xtables-legacy-multi",
+        Path.join(inner, "target/usr/bin/iptables-xml")
+      )
+
+      tarball = Path.join(tmp, "fixture.tar.gz")
+      tar_create!(tarball, [NBPR.Artifact.dir_name(@inputs)], tmp)
+
+      assert NBPR.Artifact.Cache.extract!(tarball, @inputs) == :ok
+
+      link = Path.join(NBPR.Artifact.cache_dir(@inputs), "target/usr/bin/iptables-xml")
+      assert File.read_link(link) == {:ok, "../sbin/xtables-legacy-multi"}
+      assert File.read!(link) == "bin"
+    end
+  end
+
+  describe "normalise_symlinks!/1" do
+    test "rewrites in-tree absolute links and leaves relative and external links alone" do
+      root = make_tmp_dir!()
+      File.mkdir_p!(Path.join(root, "usr/bin"))
+      File.mkdir_p!(Path.join(root, "usr/sbin"))
+      File.write!(Path.join(root, "usr/sbin/xtables-legacy-multi"), "bin")
+
+      absolute_in_tree = Path.join(root, "usr/bin/iptables-xml")
+      File.ln_s!("/usr/sbin/xtables-legacy-multi", absolute_in_tree)
+
+      relative_link = Path.join(root, "usr/sbin/iptables")
+      File.ln_s!("xtables-legacy-multi", relative_link)
+
+      external_link = Path.join(root, "usr/bin/host-resolv")
+      File.ln_s!("/etc/resolv.conf", external_link)
+
+      assert NBPR.Artifact.Cache.normalise_symlinks!(root) == :ok
+
+      assert File.read_link(absolute_in_tree) == {:ok, "../sbin/xtables-legacy-multi"}
+      assert File.read_link(relative_link) == {:ok, "xtables-legacy-multi"}
+      assert File.read_link(external_link) == {:ok, "/etc/resolv.conf"}
+    end
   end
 
   defp build_tarball!(top_level_name, files) do

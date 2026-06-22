@@ -20,6 +20,8 @@ defmodule NBPR.Inspector do
       "",
       format_kernel_modules(pkg),
       "",
+      format_runtime_env(pkg),
+      "",
       format_artifact_sites(pkg)
     ]
     |> Enum.join("\n")
@@ -118,6 +120,12 @@ defmodule NBPR.Inspector do
 
   defp format_kernel_modules(%{kernel_modules: kmods}) do
     "Kernel modules:\n" <> Enum.map_join(kmods, "\n", &"  #{&1}")
+  end
+
+  defp format_runtime_env(%{runtime_env: []}), do: "Runtime env: (none)"
+
+  defp format_runtime_env(%{runtime_env: env}) do
+    "Runtime env:\n" <> Enum.map_join(env, "\n", fn {var, value} -> "  #{var}=#{value}" end)
   end
 
   defp format_artifact_sites(%{artifact_sites: []}),
