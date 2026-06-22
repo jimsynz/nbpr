@@ -4,6 +4,7 @@ deps/
 *.ez
 erl_crash.dump
 cover/
+tmp/
 .elixir_ls/
 doc/
 .DS_Store
