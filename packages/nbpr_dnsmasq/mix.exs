@@ -6,7 +6,7 @@ defmodule Nbpr.Dnsmasq.MixProject do
   # be a valid Hex version on its own — `normalise_version/1` pads it to the
   # three-component shape Hex requires. nbpr-side rebuilds of the same upstream
   # version go in the patch position: `2.91.1`, `2.91.2`, etc.
-  @version "2.91.0"
+  @version "2.92"
 
   def project do
     [
