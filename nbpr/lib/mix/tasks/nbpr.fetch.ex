@@ -137,7 +137,8 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     Path.join([Mix.Project.build_path(), "nerves", "rootfs_overlay"])
   end
 
-  defp system_app! do
+  @doc false
+  def system_app! do
     unless Code.ensure_loaded?(Nerves.Env) do
       Mix.raise("Nerves.Env is not loaded; ensure :nerves is a project dep")
     end
@@ -154,14 +155,16 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     end
   end
 
-  defp system_version!(system_app) do
+  @doc false
+  def system_version!(system_app) do
     case Application.spec(system_app, :vsn) do
       nil -> Mix.raise("could not read version of #{inspect(system_app)}")
       vsn -> to_string(vsn)
     end
   end
 
-  defp discover_packages do
+  @doc false
+  def discover_packages do
     for {app, _, _} <- Application.loaded_applications(),
         app != :nbpr,
         app_name = Atom.to_string(app),
@@ -173,6 +176,16 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   end
 
   defp install_to_priv!(app, module, system_app, system_version) do
+    {pkg, cache_dir} = ensure_cached!(app, module, system_app, system_version)
+    install_artefact!(pkg, cache_dir, app)
+  end
+
+  @doc """
+  Ensures the package's artefact is fetched/built and extracted to its cache
+  dir. Returns `{package_struct, cache_dir}`. Shared with `mix nbpr.stage`.
+  """
+  @spec ensure_cached!(atom(), module(), atom(), String.t()) :: {map(), Path.t()}
+  def ensure_cached!(app, module, system_app, system_version) do
     pkg = module.__nbpr_package__()
     package_version = to_string(Application.spec(app, :vsn))
 
@@ -189,9 +202,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       :ok = Cache.extract!(tarball, inputs)
     end
 
-    cache_dir = Artifact.cache_dir(inputs)
-
-    install_artefact!(pkg, cache_dir, app)
+    {pkg, Artifact.cache_dir(inputs)}
   end
 
   # Userspace packages stage into priv/ (binaries) + the rootfs overlay
