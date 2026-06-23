@@ -1,7 +1,8 @@
 defmodule NBPR.Application do
   @moduledoc """
-  Sets up `PATH` and `LD_LIBRARY_PATH` so external programs spawned by the BEAM
-  can find every loaded nbpr package's binaries and shared libraries.
+  Sets up `PATH`, `LD_LIBRARY_PATH`, and any package-declared `runtime_env` so
+  external programs spawned by the BEAM can find every loaded nbpr package's
+  binaries, shared libraries, and runtime resources.
 
   Each nbpr package ships its `target/` artefacts under its own `priv/` (so
   Mix release semantics stay intact and packages can't stomp on each other in
@@ -30,30 +31,66 @@ defmodule NBPR.Application do
   @doc false
   @spec setup_env!() :: :ok
   def setup_env! do
-    nbpr_packages = nbpr_priv_dirs()
+    packages = nbpr_packages()
+    priv_dirs = Enum.map(packages, & &1.priv)
 
-    bin_paths = Enum.map(nbpr_packages, &Path.join(&1, "usr/bin"))
-    sbin_paths = Enum.map(nbpr_packages, &Path.join(&1, "usr/sbin"))
+    bin_paths = Enum.map(priv_dirs, &Path.join(&1, "usr/bin"))
+    sbin_paths = Enum.map(priv_dirs, &Path.join(&1, "usr/sbin"))
     paths = bin_paths |> Enum.concat(sbin_paths) |> Enum.filter(&File.dir?/1)
 
     lib_paths =
-      nbpr_packages
+      priv_dirs
       |> Enum.map(&Path.join(&1, "usr/lib"))
       |> Enum.filter(&File.dir?/1)
 
     prepend_env("PATH", paths)
     prepend_env("LD_LIBRARY_PATH", lib_paths)
+
+    Enum.each(runtime_env_assignments(packages), fn {var, value} ->
+      prepend_env(var, [value])
+    end)
+
     :ok
   end
 
-  defp nbpr_priv_dirs do
+  @doc false
+  @spec runtime_env_assignments([%{priv: Path.t(), runtime_env: [{String.t(), String.t()}]}]) ::
+          [{String.t(), String.t()}]
+  def runtime_env_assignments(packages) do
+    for %{priv: priv, runtime_env: runtime_env} <- packages,
+        {var, template} <- runtime_env,
+        do: {var, expand(template, priv)}
+  end
+
+  @doc false
+  @spec expand(String.t(), Path.t()) :: String.t()
+  def expand(template, priv) do
+    String.replace(template, "${NBPR_PRIV}", priv)
+  end
+
+  defp nbpr_packages do
     for {app, _, _} <- Application.loaded_applications(),
         name = Atom.to_string(app),
         String.starts_with?(name, "nbpr_"),
         app != :nbpr,
         priv = priv_dir(app),
         not is_nil(priv),
-        do: priv
+        do: %{priv: priv, runtime_env: runtime_env_for(app)}
+  end
+
+  defp runtime_env_for(app) do
+    module = derive_module(app)
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :__nbpr_package__, 0) do
+      module.__nbpr_package__().runtime_env
+    else
+      []
+    end
+  end
+
+  defp derive_module(app) do
+    short = app |> Atom.to_string() |> String.replace_prefix("nbpr_", "")
+    Module.concat(["NBPR", Macro.camelize(short)])
   end
 
   defp priv_dir(app) do

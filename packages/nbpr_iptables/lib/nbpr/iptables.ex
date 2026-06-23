@@ -11,6 +11,12 @@ defmodule NBPR.Iptables do
   The binaries require the kernel's netfilter machinery (`ip_tables`/`nf_*`
   with NAT and conntrack) to be enabled in the active Nerves system — shipping
   the userspace tools doesn't enable the kernel side.
+
+  `iptables` locates its extension objects (`libxt_*.so`) via `XTABLES_LIBDIR`,
+  whose compiled-in default (`/usr/lib/xtables`) doesn't exist on a Nerves
+  rootfs. The `runtime_env` below points it at the staged extensions under this
+  package's priv dir, so extension-using rules work without the consumer having
+  to set it.
   """
 
   use NBPR.BrPackage,
@@ -18,5 +24,6 @@ defmodule NBPR.Iptables do
     br_package: "iptables",
     description: "Linux kernel firewall, NAT, and packet mangling tools.",
     homepage: "http://www.netfilter.org/projects/iptables/index.html",
+    runtime_env: [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}],
     artifact_sites: [{:ghcr, "ghcr.io/jimsynz/nbpr"}]
 end

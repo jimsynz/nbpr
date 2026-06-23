@@ -31,7 +31,8 @@ defmodule NBPR.InspectorTest do
           ]
         ]
       ],
-      kernel_modules: ["nf_conntrack"]
+      kernel_modules: ["nf_conntrack"],
+      runtime_env: [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}]
   end
 
   describe "format/1" do
@@ -60,6 +61,7 @@ defmodule NBPR.InspectorTest do
 
       assert output =~ "Daemons: (none)"
       assert output =~ "Kernel modules: (none)"
+      assert output =~ "Runtime env: (none)"
     end
 
     test "renders daemon block with module, path, argv template, and runtime opts" do
@@ -80,6 +82,13 @@ defmodule NBPR.InspectorTest do
 
       assert output =~ "Kernel modules:"
       assert output =~ "  nf_conntrack"
+    end
+
+    test "renders runtime env when populated" do
+      output = WithDaemon.__nbpr_package__() |> NBPR.Inspector.format()
+
+      assert output =~ "Runtime env:"
+      assert output =~ "  XTABLES_LIBDIR=${NBPR_PRIV}/usr/lib/xtables"
     end
 
     test "renders 'source-build only' when artifact_sites is empty" do

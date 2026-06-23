@@ -90,6 +90,7 @@ defmodule NBPR.BrPackageTest do
       assert pkg.br_external_path == nil
       assert pkg.daemons == []
       assert pkg.kernel_modules == []
+      assert pkg.runtime_env == []
       assert pkg.artifact_sites == []
     end
 
@@ -260,6 +261,35 @@ defmodule NBPR.BrPackageTest do
         end
         """)
       end
+    end
+
+    test "rejects a runtime_env value referencing an unknown placeholder" do
+      assert_raise ArgumentError, ~r/unknown placeholder \$\{BOGUS\}/, fn ->
+        Code.eval_string("""
+        defmodule NBPR.BrPackageTest.BadRuntimeEnv do
+          use NBPR.BrPackage,
+            version: 1,
+            br_package: "x",
+            description: "x",
+            runtime_env: [{"FOO", "${BOGUS}/bar"}]
+        end
+        """)
+      end
+    end
+
+    test "accepts a runtime_env value using ${NBPR_PRIV}" do
+      Code.eval_string("""
+      defmodule NBPR.BrPackageTest.GoodRuntimeEnv do
+        use NBPR.BrPackage,
+          version: 1,
+          br_package: "x",
+          description: "x",
+          runtime_env: [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}]
+      end
+      """)
+
+      assert NBPR.BrPackageTest.GoodRuntimeEnv.__nbpr_package__().runtime_env ==
+               [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}]
     end
   end
 end
