@@ -12,7 +12,7 @@ out-of-tree packages as out of scope here.
 
 ## Prerequisites
 
-- A clone of [`nerves-project/nbpr`](https://github.com/nerves-project/nbpr).
+- A clone of [`jimsynz/nbpr`](https://github.com/jimsynz/nbpr).
 - Elixir 1.16+ and OTP 27+.
 - A Nerves target you can build against (`rpi4`, `bbb`, etc. — pick one
   you have hardware for, or use `qemu_arm` for a host-only smoke test).
