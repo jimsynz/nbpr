@@ -10,14 +10,34 @@ defmodule Mix.Tasks.Nbpr.Stage do
   shadow system whose `staging/` carries the extra libs, so the shared system
   artefact is never mutated.
 
-  It must run *before* the app's deps compile. Wire it at the front of the
-  build, and crucially give it no compile-triggering requirement of its own:
+  ## When this has to run
 
-      aliases: ["firmware": ["nbpr.stage", "nbpr.fetch", "firmware"]]
+  The overlay only helps a NIF that links these libraries at *cross-compile*
+  time if `NERVES_SYSTEM` already points at the shadow when that NIF's compiler
+  runs. An alias is **not** enough to guarantee that: Mix compiles every
+  dependency before it will run a dependency-defined task, so by the time a
+  `firmware`/`compile` alias could invoke `nbpr.stage` the dependency NIFs have
+  already built against the unmodified sysroot. A project `compilers:` entry is
+  no earlier — those run after deps compile too.
 
-  When the firmware build then bootstraps the Nerves env, it derives the
-  cross-compile sysroot (`PKG_CONFIG_SYSROOT_DIR`, `--sysroot`, ...) from the
-  shadow — so the project's NIFs see the staged libraries.
+  For a NIF in your *own* application (compiled after deps, when the project
+  itself compiles), a consumer-side function alias runs early enough:
+
+      def project do
+        [aliases: [compile: [&stage_nbpr/1, "compile"]], ...]
+      end
+
+      defp stage_nbpr(_args), do: Mix.Task.run("nbpr.stage")
+
+  NIFs pulled in as *dependencies* compile before any project alias step, so
+  staging them automatically needs a hook in the Nerves bootstrap chain — the
+  point where `Nerves.Env.bootstrap/0` sets the cross-compile env, before
+  `deps.compile`. That hook is forthcoming; until it lands this task is the
+  validated overlay mechanism, run manually or via the function alias above.
+
+  Once `NERVES_SYSTEM` points at the shadow, the Nerves env bootstrap derives
+  the cross-compile sysroot (`PKG_CONFIG_SYSROOT_DIR`, `--sysroot`, ...) from it,
+  so NIFs that build after the repoint see the staged libraries.
   """
 
   use Mix.Task
