@@ -16,8 +16,8 @@ jobs:
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "28"
-          elixir-version: "1.19"
+          version-file: .tool-versions
+          version-type: strict
 
       # Mix won't run any task before `deps.get`; `mix nbpr.matrix` itself
       # only reads project metadata, but the workspace declares the
@@ -56,8 +56,8 @@ jobs:
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "28"
-          elixir-version: "1.19"
+          version-file: .tool-versions
+          version-type: strict
 
       # Buildroot download cache: keyed on system+version because BR version
       # (and therefore source tarball + toolchain set) is determined by the
