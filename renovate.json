@@ -81,6 +81,20 @@
     },
     {
       "customType": "regex",
+      "description": "nbpr_kmod @version → Buildroot's `KMOD_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_kmod/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "kmod",
+      "packageNameTemplate": "kmod",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
       "managerFilePatterns": [
         "/^renovate\\.json$/"

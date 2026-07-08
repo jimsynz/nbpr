@@ -113,9 +113,20 @@ per-environment) compose naturally there.
 
 For packages that ship kernel modules (out-of-tree `.ko` files), the
 `kernel_modules:` declaration generates an `Application` whose
-`start/2` runs `modprobe` for each module at boot. This *does*
-auto-load — kmods are global, can't be supervised, and "load on every
-boot" is the only reasonable behaviour.
+`start/2` loads each module at boot. This *does* auto-load — kmods are
+global, can't be supervised, and "load on every boot" is the only
+reasonable behaviour.
+
+Loading an out-of-tree module on a stock Nerves system needs more than
+`modprobe <name>`: the system's `/lib/modules/<ver>/modules.dep` only
+indexes the modules the system was built with, the rootfs is read-only
+(so no on-device `depmod`), and busybox ships no `insmod` to load by
+path. So kernel-module packages depend on `:nbpr_kmod` (the kmod
+tools packaged as a regular NBPR package), and
+`NBPR.Runtime.load_kernel_module!/2` locates the priv-shipped `.ko`,
+`modprobe`s its in-tree dependencies (read from the module's
+`depends:` field via `modinfo`), and `insmod`s it by path. Modules the
+system already indexes fall back to plain `modprobe`.
 
 ## What stays unchanged
 

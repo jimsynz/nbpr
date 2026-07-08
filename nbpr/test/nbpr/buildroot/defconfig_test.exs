@@ -58,6 +58,7 @@ defmodule NBPR.Buildroot.DefconfigTest do
 
       assert out =~ "BR2_arm=y"
       assert out =~ "BR2_PER_PACKAGE_DIRECTORIES=y"
+      assert out =~ "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y"
       assert out =~ "BR2_PACKAGE_JQ=y"
       assert String.ends_with?(out, "\n")
     end

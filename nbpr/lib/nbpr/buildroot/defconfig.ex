@@ -7,8 +7,10 @@ defmodule NBPR.Buildroot.Defconfig do
 
   1. The system's defconfig verbatim (e.g. `nerves_system_rpi4/nerves_defconfig`).
   2. `BR2_PER_PACKAGE_DIRECTORIES=y` so per-package builds don't contend.
-  3. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
-  4. One line per resolved `build_opt` whose schema declared a `:br_flag`
+  3. `BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y` so packages overlapping busybox
+     applets (e.g. kmod's tools) aren't dropped as unmet dependencies.
+  4. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
+  5. One line per resolved `build_opt` whose schema declared a `:br_flag`
      extension, formatted as `<br_flag>=<value>` with BR-style boolean,
      string, and integer encoding.
 
@@ -29,9 +31,13 @@ defmodule NBPR.Buildroot.Defconfig do
       when is_binary(system_defconfig_path) and is_list(build_opts) do
     base = File.read!(system_defconfig_path)
 
+    # SHOW_OTHERS only unhides BR packages that overlap busybox applets
+    # (e.g. kmod's tools); without it `make olddefconfig` silently drops
+    # them as unmet dependencies. It doesn't change busybox itself.
     nbpr_lines = [
       "# === nbpr additions ===",
       "BR2_PER_PACKAGE_DIRECTORIES=y",
+      "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y",
       "BR2_PACKAGE_#{br_symbol(package.br_package)}=y"
     ]
 
