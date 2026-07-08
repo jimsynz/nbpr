@@ -81,12 +81,12 @@
     },
     {
       "customType": "regex",
-      "description": "nbpr_kmod @version → Buildroot's `KMOD_VERSION` line at the pinned BR_REF.",
+      "description": "nbpr_kmod @version → Buildroot's `KMOD_VERSION` line at the pinned BR_REF. kmod versions upstream as a bare major (e.g. `33`), so the regex allows zero dots; the package's `normalise_version/1` pads to Hex's three-component shape.",
       "managerFilePatterns": [
         "/^packages/nbpr_kmod/mix\\.exs$/"
       ],
       "matchStrings": [
-        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){0,2})\""
       ],
       "depNameTemplate": "kmod",
       "packageNameTemplate": "kmod",
