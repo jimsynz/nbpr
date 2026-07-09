@@ -73,7 +73,25 @@ defmodule NBPR.BrPackage do
                      br_external_path: [
                        type: :string,
                        doc:
-                         "Path to a vendored BR external tree. Mutually exclusive with `:br_package`."
+                         "Path (relative to the package root) to a vendored Buildroot external tree (`BR2_EXTERNAL` layout). Mutually exclusive with `:br_package`; requires `:br_packages`."
+                     ],
+                     br_packages: [
+                       type: {:list, :string},
+                       default: [],
+                       doc:
+                         "Buildroot package names to build from the vendored external tree, in dependency order. Only valid with `:br_external_path`. Each is enabled (`BR2_PACKAGE_<SYM>=y`), built, and its per-package output merged into the artefact."
+                     ],
+                     expose_staging: [
+                       type: :boolean,
+                       default: false,
+                       doc:
+                         "When `true`, the artefact's `staging/` tree (headers, dev symlinks, CMake/pkg-config files) is installed into the package's `priv/staging` at fetch time, so a consumer NIF can cross-compile against a shipped library (point `-I priv/staging/usr/include` / `-L priv/staging/usr/lib`). Defaults to `false` to keep runtime-only packages lean."
+                     ],
+                     rootfs_paths: [
+                       type: {:list, :string},
+                       default: ["lib/firmware"],
+                       doc:
+                         "Subtrees of the package's `target/` output to route to the real rootfs (`/...`) instead of the package's `priv/`. Default `[\"lib/firmware\"]` (the kernel firmware loader only searches `/lib/firmware`). Add `\"usr/lib\"` for a shared library that a **NIF** links against: the BEAM's `dlopen` honours only the `LD_LIBRARY_PATH` captured at process start, so a runtime-set path can't reach a lib in `priv` — it must be on the loader's default path (`/usr/lib`). (Binaries spawned via `System.cmd/2` are fine from `priv`; their child process inherits the updated env.)"
                      ],
                      description: [
                        type: :string,
@@ -109,6 +127,12 @@ defmodule NBPR.BrPackage do
                        default: [],
                        doc:
                          "Where to fetch prebuilt artefact tarballs. Supports `{:ghcr, \"ghcr.io/<owner>\"}` and `{:github_releases, \"<owner>/<repo>\"}`. Sites are tried in order; first one to resolve and download wins."
+                     ],
+                     targets: [
+                       type: {:list, :atom},
+                       default: [],
+                       doc:
+                         "Nerves targets this package supports (e.g. `[:rpi5]`). Restricts the CI prebuild matrix to these targets. Empty (the default) means every target in the workspace matrix — appropriate for portable userspace packages. Hardware-specific packages (a PCIe device driver, an SoC accelerator) should list only the boards they apply to."
                      ]
                    )
 
@@ -171,12 +195,16 @@ defmodule NBPR.BrPackage do
       homepage: validated[:homepage],
       br_package: validated[:br_package],
       br_external_path: validated[:br_external_path],
+      br_packages: validated[:br_packages],
+      expose_staging: validated[:expose_staging],
+      rootfs_paths: validated[:rootfs_paths],
       build_opts: build_opts_clean,
       build_opt_extensions: build_opt_extensions,
       daemons: daemons,
       kernel_modules: validated[:kernel_modules],
       runtime_env: validated[:runtime_env],
-      artifact_sites: validated[:artifact_sites]
+      artifact_sites: validated[:artifact_sites],
+      targets: validated[:targets]
     }
   end
 
@@ -225,7 +253,20 @@ defmodule NBPR.BrPackage do
         raise ArgumentError,
               "NBPR.BrPackage: :br_package and :br_external_path are mutually exclusive"
 
-      _ ->
+      {pkg, nil} when is_binary(pkg) ->
+        if validated[:br_packages] != [] do
+          raise ArgumentError,
+                "NBPR.BrPackage: :br_packages is only valid with :br_external_path (vendored packages); a mainline :br_package builds exactly itself"
+        end
+
+        :ok
+
+      {nil, path} when is_binary(path) ->
+        if validated[:br_packages] == [] do
+          raise ArgumentError,
+                "NBPR.BrPackage: :br_external_path requires a non-empty :br_packages list naming the Buildroot package(s) to build from the vendored tree"
+        end
+
         :ok
     end
   end
@@ -347,11 +388,15 @@ defmodule NBPR.BrPackage do
         `NBPR.Runtime.load_kernel_module!/2` (requires the `:nbpr_kmod`
         dependency for its `insmod`/`modinfo` tools). No-op when not running
         on a Nerves target, so `mix test` and dev workflows are unaffected.
-        `stop/1` is a no-op — kernel modules are global resources and never
-        `rmmod`'d.
+        A module that fails to load is logged, not raised — a kmod that can't
+        come up (wrong board, absent hardware, a sibling chip's driver in a
+        multi-package firmware) must not crash the app and block the whole
+        release from starting. `stop/1` is a no-op — kernel modules are global
+        resources and never `rmmod`'d.
         """
 
         use Application
+        require Logger
 
         @otp_app unquote(otp_app)
         @kernel_modules unquote(kmods)
@@ -359,7 +404,17 @@ defmodule NBPR.BrPackage do
         @impl Application
         def start(_type, _args) do
           if NBPR.Runtime.on_nerves_target?() do
-            Enum.each(@kernel_modules, &NBPR.Runtime.load_kernel_module!(@otp_app, &1))
+            Enum.each(@kernel_modules, fn mod ->
+              try do
+                NBPR.Runtime.load_kernel_module!(@otp_app, mod)
+              rescue
+                e ->
+                  Logger.error(
+                    "[nbpr] #{@otp_app}: could not load kernel module #{mod}: " <>
+                      Exception.message(e)
+                  )
+              end
+            end)
           end
 
           Supervisor.start_link([], strategy: :one_for_one, name: __MODULE__)

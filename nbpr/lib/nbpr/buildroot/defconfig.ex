@@ -31,15 +31,19 @@ defmodule NBPR.Buildroot.Defconfig do
       when is_binary(system_defconfig_path) and is_list(build_opts) do
     base = File.read!(system_defconfig_path)
 
-    # SHOW_OTHERS only unhides BR packages that overlap busybox applets
-    # (e.g. kmod's tools); without it `make olddefconfig` silently drops
-    # them as unmet dependencies. It doesn't change busybox itself.
-    nbpr_lines = [
-      "# === nbpr additions ===",
-      "BR2_PER_PACKAGE_DIRECTORIES=y",
-      "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y",
-      "BR2_PACKAGE_#{br_symbol(package.br_package)}=y"
-    ]
+    package_lines =
+      for target <- NBPR.Package.br_targets(package),
+          do: "BR2_PACKAGE_#{br_symbol(target)}=y"
+
+    nbpr_lines =
+      [
+        "# === nbpr additions ===",
+        "BR2_PER_PACKAGE_DIRECTORIES=y",
+        # SHOW_OTHERS only unhides BR packages that overlap busybox applets
+        # (e.g. kmod's tools); without it `make olddefconfig` silently drops
+        # them as unmet dependencies. It doesn't change busybox itself.
+        "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y"
+      ] ++ package_lines
 
     opt_lines =
       build_opts

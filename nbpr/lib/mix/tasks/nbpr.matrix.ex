@@ -73,13 +73,34 @@ defmodule Mix.Tasks.Nbpr.Matrix do
     packages = discover_packages!(root)
 
     for package <- packages,
-        {target, _github, version} <- systems do
+        {target, _github, version} <- systems,
+        target_supported?(package, target) do
       %{
         package: package,
         module: module_for(package),
         target: Atom.to_string(target),
         system_version: version
       }
+    end
+  end
+
+  # A package with a non-empty `targets:` list is hardware-specific (e.g. a
+  # PCIe driver) and only builds for the boards it names; an empty list means
+  # portable — build for every target in the workspace matrix.
+  defp target_supported?(package, target) do
+    case package_targets(package) do
+      [] -> true
+      targets -> target in targets
+    end
+  end
+
+  defp package_targets(package) do
+    module = :"Elixir.#{module_for(package)}"
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :__nbpr_package__, 0) do
+      module.__nbpr_package__().targets
+    else
+      []
     end
   end
 

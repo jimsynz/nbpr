@@ -63,6 +63,33 @@ defmodule NBPR.Buildroot.DefconfigTest do
       assert String.ends_with?(out, "\n")
     end
 
+    test "enables a BR2_PACKAGE line for each vendored br_package", %{tmp: tmp} do
+      sys_defconfig = Path.join(tmp, "nerves_defconfig")
+      File.write!(sys_defconfig, "BR2_aarch64=y\n")
+
+      package = %NBPR.Package{
+        name: :hailo8,
+        version: 1,
+        module: NBPR.Hailo8,
+        description: "x",
+        br_package: nil,
+        br_external_path: "buildroot",
+        br_packages: ["spdlog_hailort", "hailort", "hailort-drivers"],
+        build_opts: [],
+        build_opt_extensions: %{},
+        daemons: [],
+        kernel_modules: ["hailo_pci"],
+        artifact_sites: []
+      }
+
+      out = Defconfig.render!(package, sys_defconfig, [])
+
+      assert out =~ "BR2_PACKAGE_SPDLOG_HAILORT=y"
+      assert out =~ "BR2_PACKAGE_HAILORT=y"
+      assert out =~ "BR2_PACKAGE_HAILORT_DRIVERS=y"
+      assert out =~ "BR2_PER_PACKAGE_DIRECTORIES=y"
+    end
+
     test "emits one BR config line per resolved build_opt with a :br_flag", %{tmp: tmp} do
       sys_defconfig = Path.join(tmp, "nerves_defconfig")
       File.write!(sys_defconfig, "BR2_arm=y\n")

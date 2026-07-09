@@ -128,6 +128,10 @@ tools packaged as a regular NBPR package), and
 `depends:` field via `modinfo`), and `insmod`s it by path. Modules the
 system already indexes fall back to plain `modprobe`.
 
+Firmware a driver needs at probe time is routed to the real rootfs
+(`/lib/firmware`) via the artefact's `rootfs/` category, since the
+in-kernel firmware loader doesn't search a package's `priv/`.
+
 ## What stays unchanged
 
 The Nerves system layer is untouched. The kernel config is untouched.

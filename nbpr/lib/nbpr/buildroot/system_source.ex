@@ -41,7 +41,14 @@ defmodule NBPR.Buildroot.SystemSource do
   @spec ensure!(atom(), String.t()) :: Path.t()
   def ensure!(system_app, system_version)
       when is_atom(system_app) and is_binary(system_version) do
-    deps_path = Path.join(Mix.Project.deps_path(), Atom.to_string(system_app))
+    # Resolve the system's source dir. `Mix.Project.deps_paths/0` returns the
+    # real location for every dep — `deps/<app>` for hex/git, but the in-place
+    # source dir for a `path:` dep (which is never copied into `deps/`). Fall
+    # back to `deps/<app>` if it's not in the map.
+    deps_path =
+      Map.get_lazy(Mix.Project.deps_paths(), system_app, fn ->
+        Path.join(Mix.Project.deps_path(), Atom.to_string(system_app))
+      end)
 
     cond do
       File.regular?(Path.join(deps_path, "Config.in")) ->

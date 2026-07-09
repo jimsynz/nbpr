@@ -19,12 +19,16 @@ defmodule NBPR.Package do
           homepage: String.t() | nil,
           br_package: String.t() | nil,
           br_external_path: String.t() | nil,
+          br_packages: [String.t()],
+          expose_staging: boolean(),
+          rootfs_paths: [String.t()],
           build_opts: keyword(),
           build_opt_extensions: %{atom() => map()},
           daemons: [Daemon.t()],
           kernel_modules: [String.t()],
           runtime_env: [{String.t(), String.t()}],
-          artifact_sites: [artifact_site()]
+          artifact_sites: [artifact_site()],
+          targets: [atom()]
         }
 
   defstruct [
@@ -40,6 +44,26 @@ defmodule NBPR.Package do
     :daemons,
     :kernel_modules,
     :runtime_env,
-    :artifact_sites
+    :artifact_sites,
+    br_packages: [],
+    expose_staging: false,
+    rootfs_paths: ["lib/firmware"],
+    targets: []
   ]
+
+  @doc """
+  Returns the list of Buildroot package names this nbpr package builds and
+  harvests.
+
+  For a mainline package this is the single `:br_package`. For a vendored
+  package (an external tree under `:br_external_path`) it's the explicit
+  `:br_packages` list, in dependency order — the order Buildroot targets are
+  invoked and their per-package outputs merged.
+  """
+  @spec br_targets(t()) :: [String.t()]
+  def br_targets(%__MODULE__{br_package: br_package}) when is_binary(br_package),
+    do: [br_package]
+
+  def br_targets(%__MODULE__{br_packages: br_packages}) when is_list(br_packages),
+    do: br_packages
 end

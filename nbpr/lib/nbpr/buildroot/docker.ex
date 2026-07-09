@@ -211,7 +211,19 @@ defmodule NBPR.Buildroot.Docker do
     rm -rf #{shell_quote(pp_dst)}
     mkdir -p #{shell_quote(pp_dst)}/target #{shell_quote(pp_dst)}/staging
 
-    BUILD_DIR=$(ls -d #{shell_quote(build_path)}/build/#{br_package}-*/ 2>/dev/null | head -1)
+    # Locate THIS package's build dir. Two subtleties, both triggered when the
+    # shared (system, BR-version) volume holds builds of several nbpr packages
+    # that define the SAME BR package at different versions — e.g. nbpr_hailo8's
+    # `hailort-4.24.0` alongside nbpr_hailo10's `hailort-5.3.0`:
+    #   * Anchor the version with a leading digit (`-[0-9]*`) so `hailort-*`
+    #     doesn't also match `hailort-drivers-*` / `hailort-firmware-*`.
+    #   * Sort by mtime (`-t`) and take the freshest, so the just-built version
+    #     wins over a stale same-named dir left by another package. Alphabetical
+    #     `head -1` would pick `hailort-4.24.0` over `hailort-5.3.0` and harvest
+    #     the wrong (missing) files, dropping this package's output entirely.
+    # `|| true` so a non-matching glob doesn't abort via pipefail before the
+    # explicit, friendlier check below.
+    BUILD_DIR=$(ls -dt #{shell_quote(build_path)}/build/#{br_package}-[0-9]*/ 2>/dev/null | head -1 || true)
     BUILD_DIR="${BUILD_DIR%/}"
     if [ -z "$BUILD_DIR" ] || [ ! -d "$BUILD_DIR" ]; then
       echo "could not locate build dir for #{br_package} under #{build_path}/build/" >&2
