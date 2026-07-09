@@ -96,7 +96,7 @@ defmodule NBPR.BrPackage do
                        type: {:list, :string},
                        default: [],
                        doc:
-                         "Out-of-tree kernel modules. Triggers generation of an Application that runs `modprobe` at boot on Nerves targets."
+                         "Out-of-tree kernel modules. Triggers generation of an Application that loads each module at boot on Nerves targets via `NBPR.Runtime.load_kernel_module!/2`. Packages declaring this must also depend on `:nbpr_kmod`, which ships the `insmod`/`modinfo` tools the loader needs (stock Nerves systems don't include them)."
                      ],
                      runtime_env: [
                        type: {:list, {:tuple, [:string, :string]}},
@@ -336,26 +336,30 @@ defmodule NBPR.BrPackage do
 
   defp application_module_ast(%Package{kernel_modules: []}, _caller_module), do: nil
 
-  defp application_module_ast(%Package{kernel_modules: kmods}, caller_module) do
+  defp application_module_ast(%Package{kernel_modules: kmods} = package, caller_module) do
     app_module = Module.concat([caller_module, "Application"])
+    otp_app = String.to_atom("nbpr_#{package.name}")
 
     quote do
       defmodule unquote(app_module) do
         @moduledoc """
         Auto-generated Application that loads kernel modules at boot via
-        `modprobe`. No-op when not running on a Nerves target, so `mix test`
-        and dev workflows are unaffected. `stop/1` is a no-op — kernel modules
-        are global resources and never `rmmod`'d.
+        `NBPR.Runtime.load_kernel_module!/2` (requires the `:nbpr_kmod`
+        dependency for its `insmod`/`modinfo` tools). No-op when not running
+        on a Nerves target, so `mix test` and dev workflows are unaffected.
+        `stop/1` is a no-op — kernel modules are global resources and never
+        `rmmod`'d.
         """
 
         use Application
 
+        @otp_app unquote(otp_app)
         @kernel_modules unquote(kmods)
 
         @impl Application
         def start(_type, _args) do
           if NBPR.Runtime.on_nerves_target?() do
-            Enum.each(@kernel_modules, &NBPR.Runtime.modprobe!/1)
+            Enum.each(@kernel_modules, &NBPR.Runtime.load_kernel_module!(@otp_app, &1))
           end
 
           Supervisor.start_link([], strategy: :one_for_one, name: __MODULE__)

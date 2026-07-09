@@ -77,7 +77,6 @@ defmodule NBPR.Buildroot.Builder do
     Path.join([data_dir(), "nbpr", "build", "#{system_app}-#{br_version}"])
   end
 
-
   defp data_dir do
     cond do
       dir = System.get_env("NERVES_ARTIFACTS_DIR") ->

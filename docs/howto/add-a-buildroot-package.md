@@ -106,8 +106,10 @@ Extend it as the package needs. The full option schema is in
   add a `daemons:` declaration. See `NBPR.BrPackage`'s moduledoc for
   the schema; `:nbpr_dnsmasq` is the canonical example.
 - **Kernel modules** (out-of-tree `.ko` files) — add a `kernel_modules:`
-  declaration. The macro generates an `Application` that runs
-  `modprobe` for each at boot.
+  declaration, and add `:nbpr_kmod` to the package's deps (it ships
+  the `insmod`/`modinfo` tools that stock Nerves systems lack). The
+  macro generates an `Application` that loads each module at boot via
+  `NBPR.Runtime.load_kernel_module!/2`.
 - **Build options** (Buildroot kconfig you want to expose to consumers,
   e.g. `--enable-fips`) — add a `build_opts:` schema. Consumers
   override via their app's `config/target.exs` per target.

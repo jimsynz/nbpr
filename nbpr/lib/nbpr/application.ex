@@ -34,9 +34,14 @@ defmodule NBPR.Application do
     packages = nbpr_packages()
     priv_dirs = Enum.map(packages, & &1.priv)
 
-    bin_paths = Enum.map(priv_dirs, &Path.join(&1, "usr/bin"))
-    sbin_paths = Enum.map(priv_dirs, &Path.join(&1, "usr/sbin"))
-    paths = bin_paths |> Enum.concat(sbin_paths) |> Enum.filter(&File.dir?/1)
+    # The non-merged-usr Nerves skeleton means Buildroot packages install
+    # into all four (e.g. kmod's tool symlinks land in `sbin/`).
+    paths =
+      for dir <- ["usr/bin", "usr/sbin", "bin", "sbin"],
+          priv <- priv_dirs,
+          path = Path.join(priv, dir),
+          File.dir?(path),
+          do: path
 
     lib_paths =
       priv_dirs
