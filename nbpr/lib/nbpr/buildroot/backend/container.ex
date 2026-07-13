@@ -1,14 +1,20 @@
-defmodule NBPR.Buildroot.Docker do
+defmodule NBPR.Buildroot.Backend.Container do
   @moduledoc """
+  Shared runner for the container-based backends (`NBPR.Buildroot.Backend.Docker`,
+  `NBPR.Buildroot.Backend.Podman`, and future CLI-compatible runtimes).
+
   Runs a Buildroot build inside the canonical Nerves build container
-  (`ghcr.io/nerves-project/nerves_system_br:latest`).
+  (`ghcr.io/nerves-project/nerves_system_br:latest`). The in-container bash
+  script is identical across runtimes — only the outer invocation differs
+  (which executable, and whether the extracted output must be chowned back to
+  the host user), so the concrete backends are thin wrappers that call
+  `build!/2` with those two knobs.
 
   ## Why
 
-  Phase 4.5 fallback for when `mix nbpr.build` is invoked outside
-  `mix nerves.system.shell` — the containerised env avoids subtle
-  host-vs-canonical differences in toolchain wrappers, sysroot paths,
-  and ABI flags.
+  The containerised env avoids subtle host-vs-canonical differences in
+  toolchain wrappers, sysroot paths, and ABI flags when `mix nbpr.build` is
+  invoked outside `mix nerves.system.shell`.
 
   ## Storage layout
 
@@ -16,7 +22,7 @@ defmodule NBPR.Buildroot.Docker do
   `--hard-links`. macOS Docker bind mounts (osxfs / VirtioFS) don't support
   hardlinks, so the BR build dir cannot be a bind mount on those hosts.
 
-  Instead the build dir lives in a **named Docker volume** keyed by
+  Instead the build dir lives in a **named volume** keyed by
   `(system, BR version)`:
 
     - `nbpr_build_<system>_<br_version>` — persistent across runs
@@ -25,116 +31,73 @@ defmodule NBPR.Buildroot.Docker do
       without path translation)
     - hardlinks work because volumes are native Linux filesystems
 
-  After `make` succeeds, the per-package output is `cp -r`'d from the
-  volume to a host bind-mounted dir so `NBPR.Buildroot.Harvest` and
-  `NBPR.Pack` (both running on the host) can read it.
+  After `make` succeeds, the per-package output is copied from the volume to a
+  host bind-mounted dir so `NBPR.Buildroot.Harvest` and `NBPR.Pack` (both
+  running on the host) can read it.
 
   ## Cleanup
 
-  Volumes persist across runs. Periodically `docker volume rm` them, or
-  add a `mix nbpr.cache.clean` task later.
+  Volumes persist across runs. Periodically remove them (`docker volume rm` /
+  `podman volume rm`), or add a `mix nbpr.cache.clean` task later.
   """
 
   @image "ghcr.io/nerves-project/nerves_system_br:latest"
 
   @doc """
-  Returns `true` when a supported container runtime (`docker` or `podman`) is
-  on PATH.
+  Returns `true` when `executable` is on PATH.
   """
-  @spec available?() :: boolean()
-  def available?, do: runtime() != nil
-
-  @doc """
-  Returns the container runtime executable to use: `docker` if present,
-  otherwise `podman` (which is CLI-compatible for the `run`/`-v`/`-e`/`--user`
-  subset this module needs). `nil` if neither is on PATH.
-  """
-  @spec runtime() :: String.t() | nil
-  def runtime, do: System.find_executable("docker") || System.find_executable("podman")
-
-  @doc """
-  Returns `true` when `runtime` is rootless podman.
-
-  Rootless podman maps container-uid-0 to the invoking host user, so files the
-  build writes to a bind mount are already host-owned — and a `chown` to the
-  host uid would instead resolve into the subuid range and make them
-  unreadable. Detecting this lets the build script skip that chown. Docker and
-  rootful podman run the container as real root, so they still need it.
-  """
-  @spec rootless?(String.t()) :: boolean()
-  def rootless?(runtime) do
-    String.ends_with?(runtime, "podman") and
-      case System.cmd(runtime, ["info", "--format", "{{.Host.Security.Rootless}}"],
-             stderr_to_stdout: true
-           ) do
-        {out, 0} -> String.trim(out) == "true"
-        # If `info` fails, assume rootless — it's the safe default for podman
-        # (skipping the chown leaves host-owned files; an erroneous chown does not).
-        _ -> true
-      end
+  @spec available?(String.t()) :: boolean()
+  def available?(executable) when is_binary(executable) do
+    System.find_executable(executable) != nil
   end
 
   @doc """
-  Returns `true` when we're already running inside a Nerves canonical
-  build env (so re-invoking under Docker would be redundant).
+  Runs the BR build for `spec` inside a container using `executable`.
 
-  Detection: `IN_NERVES_DEV_SHELL=1` env var, or `/home/nerves/project`
-  exists on disk (the standard working dir in nerves_system_br images).
+  Options:
+    - `:executable` — the container runtime to invoke (e.g. `"docker"`,
+      `"podman"`). Must be CLI-compatible for the `run`/`-v`/`-e`/`--user`
+      subset used here.
+    - `:chown_output?` — whether to `chown -R` the extracted output back to the
+      host user inside the container. Needed under docker / rootful podman
+      (container runs as real root); harmful under rootless podman (which
+      already writes host-owned files).
+
+  Returns the harvest dir (`spec.output_dir <> ".extract"`), containing
+  `per-package/<br_package>/`, ready for `NBPR.Buildroot.Harvest.harvest!/2`.
   """
-  @spec in_canonical_env?() :: boolean()
-  def in_canonical_env? do
-    System.get_env("IN_NERVES_DEV_SHELL") == "1" or File.dir?("/home/nerves/project")
-  end
+  @spec build!(NBPR.Buildroot.Backend.spec(), keyword()) :: Path.t()
+  def build!(spec, opts) do
+    executable = Keyword.fetch!(opts, :executable)
+    chown_output? = Keyword.fetch!(opts, :chown_output?)
 
-  @doc """
-  Runs the BR build inside a container.
+    runtime =
+      System.find_executable(executable) ||
+        raise "container runtime #{inspect(executable)} not found on PATH"
 
-  Returns the host path containing the per-package extraction
-  (`<extract_dir>/per-package/<br_package>/{target,staging}/...`),
-  ready for `NBPR.Buildroot.Harvest.harvest!/2`.
-
-  Required opts:
-    - `:br_source` — path to the patched BR tree on host
-    - `:build_path` — the path the named volume is mounted at (matches what
-      env vars reference)
-    - `:volume` — Docker volume name for the build cache
-    - `:extract_dir` — host bind-mount path where per-package output is copied
-    - `:defconfig_text` — full defconfig content to write into the build dir
-    - `:br_package` — BR package name (e.g. `"jq"`)
-    - `:env` — list of `{key, value}` env vars to pass through
-    - `:extra_mounts` — additional host paths to bind-mount at the same path
-      inside the container
-  """
-  @spec build!(keyword()) :: Path.t()
-  def build!(opts) do
-    ensure_available!()
-
-    br_source = Keyword.fetch!(opts, :br_source)
-    build_path = Keyword.fetch!(opts, :build_path)
-    volume = Keyword.fetch!(opts, :volume)
-    extract_dir = Keyword.fetch!(opts, :extract_dir)
-    defconfig_text = Keyword.fetch!(opts, :defconfig_text)
-    br_package = Keyword.fetch!(opts, :br_package)
-    env = Keyword.get(opts, :env, [])
-    extra_mounts = Keyword.get(opts, :extra_mounts, [])
+    build_path = spec.output_dir
+    volume = volume_name(Path.basename(build_path))
+    extract_dir = build_path <> ".extract"
 
     File.mkdir_p!(extract_dir)
     defconfig_host_file = Path.join(extract_dir, "_nbpr_defconfig.in")
-    File.write!(defconfig_host_file, defconfig_text)
+    File.write!(defconfig_host_file, spec.defconfig_text)
 
     bind_mount_paths =
-      [extract_dir, br_source | extra_mounts]
-      |> Enum.concat(env_paths(env))
+      [extract_dir, spec.br_source | spec.extra_mounts]
+      |> Enum.concat(env_paths(spec.env))
       |> Enum.uniq()
       |> Enum.filter(&File.exists?/1)
 
-    runtime = runtime() || raise "no container runtime (docker/podman) on PATH"
-    # Rootless podman already writes host-owned files; the chown is only needed
-    # (and only correct) under docker / rootful podman.
-    do_chown = not rootless?(runtime)
-
     bash_script =
-      build_script(build_path, defconfig_host_file, br_source, br_package, extract_dir, do_chown)
+      build_script(
+        build_path,
+        defconfig_host_file,
+        spec.br_source,
+        spec.br_package,
+        extract_dir,
+        chown_output?
+      )
 
     # The image's default user is `nerves`, not root, so without `--user 0:0`
     # we can't write to the freshly-created (root-owned) named volume. Run
@@ -147,7 +110,7 @@ defmodule NBPR.Buildroot.Docker do
       ["run", "--rm", "--user", "0:0"] ++
         ["-v", "#{volume}:#{build_path}"] ++
         Enum.flat_map(bind_mount_paths, fn p -> ["-v", "#{p}:#{p}"] end) ++
-        env_args(env) ++
+        env_args(spec.env) ++
         ["-e", "HOST_UID=#{host_uid}", "-e", "HOST_GID=#{host_gid}"] ++
         [@image, "bash", "-c", bash_script]
 
@@ -158,7 +121,7 @@ defmodule NBPR.Buildroot.Docker do
            into: IO.stream(:stdio, :line)
          ) do
       {_, 0} ->
-        Path.join(extract_dir, "per-package")
+        extract_dir
 
       {_, status} ->
         raise "Buildroot build (in #{Path.basename(runtime)}) failed with exit status #{status}"
@@ -314,20 +277,6 @@ defmodule NBPR.Buildroot.Docker do
   defp shell_quote(s) do
     # Single-quote with embedded quote escaping for paths in bash scripts.
     "'" <> String.replace(s, "'", "'\\''") <> "'"
-  end
-
-  defp ensure_available! do
-    unless available?() do
-      raise """
-      `docker` not found on PATH. `mix nbpr.build` falls back to Docker when
-      not running inside `mix nerves.system.shell`. Either:
-
-        - install Docker, or
-        - run `mix nbpr.build` from inside `mix nerves.system.shell`, or
-        - set `IN_NERVES_DEV_SHELL=1` if you're confident the host env matches
-          the canonical Nerves build container
-      """
-    end
   end
 
   defp env_args(env), do: Enum.flat_map(env, fn {k, v} -> ["-e", "#{k}=#{v}"] end)
