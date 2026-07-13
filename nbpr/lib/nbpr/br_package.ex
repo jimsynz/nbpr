@@ -91,7 +91,7 @@ defmodule NBPR.BrPackage do
                        type: {:list, :string},
                        default: ["lib/firmware"],
                        doc:
-                         "Subtrees of the package's `target/` output to route to the real rootfs (`/...`) instead of the package's `priv/`. Default `[\"lib/firmware\"]` (the kernel firmware loader only searches `/lib/firmware`). Add `\"usr/lib\"` for a shared library that a **NIF** links against: the BEAM's `dlopen` honours only the `LD_LIBRARY_PATH` captured at process start, so a runtime-set path can't reach a lib in `priv` — it must be on the loader's default path (`/usr/lib`). (Binaries spawned via `System.cmd/2` are fine from `priv`; their child process inherits the updated env.)"
+                         "Subtrees of the package's `target/` output to route to the real rootfs (`/...`) instead of the package's `priv/`. Default `[\"lib/firmware\"]` (the kernel firmware loader only searches `/lib/firmware`). A shared library that a **NIF** links against needs one of two arrangements: route `\"usr/lib\"` here so it sits on the loader's default path (the BEAM's `dlopen` honours only the `LD_LIBRARY_PATH` captured at process start, so a runtime-set path can't reach a lib in `priv`), or keep it in `priv` and have the consumer `dlopen` it by absolute path with `RTLD_GLOBAL` before loading its NIF — the namespaced option when several packages ship colliding sonames (see `nbpr_hailo8`/`nbpr_hailo10`). Binaries spawned via `System.cmd/2` are fine from `priv` either way; their child process inherits the updated env."
                      ],
                      description: [
                        type: :string,
@@ -388,11 +388,14 @@ defmodule NBPR.BrPackage do
         `NBPR.Runtime.load_kernel_module!/2` (requires the `:nbpr_kmod`
         dependency for its `insmod`/`modinfo` tools). No-op when not running
         on a Nerves target, so `mix test` and dev workflows are unaffected.
-        A module that fails to load is logged, not raised — a kmod that can't
-        come up (wrong board, absent hardware, a sibling chip's driver in a
-        multi-package firmware) must not crash the app and block the whole
-        release from starting. `stop/1` is a no-op — kernel modules are global
-        resources and never `rmmod`'d.
+        A module that fails to load is logged, not raised. The failures this
+        catches are packaging faults (vermagic mismatch from a stale artefact,
+        a missing `.ko`, a missing `:nbpr_kmod` dep) — note `insmod` of a PCIe
+        driver succeeds even with the hardware absent — but raising in a
+        `:permanent` app would crash-loop the device at boot with no automatic
+        firmware revert, which is worse than running degraded with a logged
+        error. `stop/1` is a no-op — kernel modules are global resources and
+        never `rmmod`'d.
         """
 
         use Application

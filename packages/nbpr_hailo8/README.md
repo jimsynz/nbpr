@@ -14,7 +14,7 @@ the Hailo-10H counterpart is validated end-to-end.
 
 | Component | Where it lands | How it's used |
 | --- | --- | --- |
-| `libhailort.so` (+ `libspdlog`, `libprotobuf-lite`) | `priv/usr/lib` | on `LD_LIBRARY_PATH` at boot |
+| `libhailort.so` (+ `libspdlog`, `libprotobuf-lite`) | `priv/usr/lib` | spawned binaries: `LD_LIBRARY_PATH`; NIFs: consumer pre-`dlopen`s by path |
 | `hailo_pci.ko` | `priv/lib/modules/...` | `insmod`'d at boot by `NBPR.Hailo8.Application` |
 | `hailo8_fw.bin` | `/lib/firmware/hailo/` | loaded by the driver on probe |
 | headers + `libhailort.so` dev symlink | `priv/staging` | NIF cross-compilation (`expose_staging`) |
@@ -35,16 +35,14 @@ which adds `:nbpr` and the `firmware: ["nbpr.fetch", "firmware"]` alias):
 {:nbpr_hailo8, "~> 4.24", organization: "nbpr"}
 ```
 
-The driver loads automatically at boot. To build a HailoRT-linking NIF such as
-[`nx_hailo`](https://github.com/vittoriabitton/nx_hailo) against the shipped
-SDK, point it at the staged headers/libs:
+The driver loads automatically at boot. To build a HailoRT-linking NIF against
+the shipped SDK, point it at the staged headers/libs:
 
 ```elixir
 # config/target.exs
 priv = :code.priv_dir(:nbpr_hailo8) |> to_string()
 
-config :nx_hailo,
-  target: "hailo8",
+config :my_hailo_nif,
   hailort_include_dir: Path.join(priv, "staging/usr/include"),
   hailort_lib_dir: Path.join(priv, "staging/usr/lib")
 ```
@@ -52,6 +50,13 @@ config :nx_hailo,
 `mix nbpr.fetch` (run automatically before `mix firmware`) must populate the
 package's `priv/` before the NIF compiles, so build with `mix firmware` rather
 than a bare `mix compile`.
+
+At runtime the NIF cannot resolve `libhailort` from `priv` via
+`LD_LIBRARY_PATH` (the loader captures it at process start). The consumer must
+`dlopen` the libs in this package's `priv/usr/lib` by absolute path with
+`RTLD_GLOBAL` before loading its NIF — see the `NBPR.Hailo8` moduledoc. This
+namespacing is also what lets `nbpr_hailo8` and `nbpr_hailo10` ship in the same
+image.
 
 ## Licensing
 
