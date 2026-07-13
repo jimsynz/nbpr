@@ -15,7 +15,7 @@ defmodule Nbpr.Hailo10.MixProject do
         "HailoRT v5 runtime, PCIe driver and firmware for Hailo-10H AI accelerators, packaged for Nerves",
       package: [
         organization: "nbpr",
-        licenses: ["MIT", "GPL-2.0"],
+        licenses: ["MIT", "GPL-2.0-only"],
         files: ~w(lib buildroot mix.exs README.md),
         links: %{
           "HailoRT" => "https://github.com/hailo-ai/hailort",

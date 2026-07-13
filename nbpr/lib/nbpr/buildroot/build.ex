@@ -181,7 +181,9 @@ defmodule NBPR.Buildroot.Build do
   # Locates the per-package STAGING_DIR. With a Nerves (external) toolchain,
   # `STAGING_DIR` is the toolchain sysroot at `<pp>/host/<tuple>/sysroot`, not a
   # separate `<pp>/staging` dir — that's where `.files-list-staging.txt` paths
-  # are rooted. Falls back to `<pp>/staging` for an internal toolchain.
+  # are rooted. Falls back to `<pp>/staging` for an internal toolchain. A build
+  # has one toolchain tuple; `Path.wildcard/1` returns sorted results, so the
+  # pick is deterministic even if several ever coexist.
   defp staging_src(pp_src) do
     case Path.wildcard(Path.join(pp_src, "host/*/sysroot")) do
       [dir | _] -> dir

@@ -18,7 +18,7 @@ defmodule Nbpr.Hailo8.MixProject do
         # The wrapper + Buildroot recipes; the artefact bundles libhailort
         # (MIT) and the hailo_pci driver (GPL-2.0). The Hailo-8 firmware blob
         # is proprietary and fetched from Hailo at build time, not shipped here.
-        licenses: ["MIT", "GPL-2.0"],
+        licenses: ["MIT", "GPL-2.0-only"],
         files: ~w(lib buildroot mix.exs README.md),
         links: %{
           "HailoRT" => "https://github.com/hailo-ai/hailort",

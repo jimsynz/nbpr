@@ -274,6 +274,8 @@ defmodule NBPR.Buildroot.Docker do
     # With a Nerves (external) toolchain, STAGING_DIR is the toolchain sysroot
     # under host/<tuple>/sysroot, not a separate staging/ dir — that's where the
     # files-list-staging paths are rooted. Fall back to staging/ otherwise.
+    # A build has one toolchain tuple; `ls` sorts, so the pick is deterministic
+    # even if several ever coexist.
     STAGING_SRC=$(ls -d #{pp_src}/host/*/sysroot 2>/dev/null | head -1 || true)
     [ -n "$STAGING_SRC" ] || STAGING_SRC="#{pp_src}/staging"
     copy_listed "$STAGING_SRC" "#{pp_dst}/staging" "$BUILD_DIR/.files-list-staging.txt" 1
