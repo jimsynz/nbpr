@@ -14,7 +14,7 @@ the Hailo-10H counterpart is validated end-to-end.
 
 | Component | Where it lands | How it's used |
 | --- | --- | --- |
-| `libhailort.so` (+ `libspdlog`, `libprotobuf-lite`) | `priv/usr/lib` | spawned binaries: `LD_LIBRARY_PATH`; NIFs: consumer pre-`dlopen`s by path |
+| `libhailort.so` (+ `libspdlog`, `libprotobuf-lite`) | `/usr/lib` | on the loader's default path; NIFs link `-lhailort` directly |
 | `hailo_pci.ko` | `priv/lib/modules/...` | `insmod`'d at boot by `NBPR.Hailo8.Application` |
 | `hailo8_fw.bin` | `/lib/firmware/hailo/` | loaded by the driver on probe |
 | headers + `libhailort.so` dev symlink | `priv/staging` | NIF cross-compilation (`expose_staging`) |
@@ -51,12 +51,11 @@ config :my_hailo_nif,
 package's `priv/` before the NIF compiles, so build with `mix firmware` rather
 than a bare `mix compile`.
 
-At runtime the NIF cannot resolve `libhailort` from `priv` via
-`LD_LIBRARY_PATH` (the loader captures it at process start). The consumer must
-`dlopen` the libs in this package's `priv/usr/lib` by absolute path with
-`RTLD_GLOBAL` before loading its NIF — see the `NBPR.Hailo8` moduledoc. This
-namespacing is also what lets `nbpr_hailo8` and `nbpr_hailo10` ship in the same
-image.
+At runtime `libhailort` and its helpers sit in `/usr/lib`, the dynamic
+loader's default path, so the NIF resolves them like any system library. The
+flip side: `nbpr_hailo8` and `nbpr_hailo10` must not ship in the same image —
+they route helper libs with identical sonames to `/usr/lib`, where the last
+overlay write silently wins. Build one firmware image per chip.
 
 ## Licensing
 

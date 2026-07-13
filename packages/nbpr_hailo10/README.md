@@ -6,9 +6,9 @@ HailoRT runtime, PCIe driver, and firmware for the **Hailo-10H** AI accelerator
 
 Tracks HailoRT **5.3.0** (the v5 / `master` line). The Hailo-8/8L counterpart is
 [`nbpr_hailo8`](../nbpr_hailo8); the two runtimes are incompatible — Hailo
-dropped Hailo-8 support in v5. One image may ship both packages (the libs are
-namespaced per package in `priv`), with the chip selected at runtime; a VM
-session loads exactly one runtime.
+dropped Hailo-8 support in v5 — and the two packages must not ship in the same
+firmware image (both route helper libs with identical sonames to `/usr/lib`).
+Build one image per chip.
 
 Validated end-to-end on a Hailo-10H: the package builds for
 `nerves_system_rpi5`, `hailo1x_pci` probes the device, the firmware bundle
@@ -31,10 +31,8 @@ config :my_hailo_nif,
   hailort_lib_dir: Path.join(priv, "staging/usr/lib")
 ```
 
-At runtime the NIF consumer pre-`dlopen`s the libs in this package's
-`priv/usr/lib` by absolute path with `RTLD_GLOBAL` before loading its NIF —
-`LD_LIBRARY_PATH` cannot reach `priv` for NIFs. See the `nbpr_hailo8` README
-for details; the mechanism is identical.
+At runtime `libhailort` sits in `/usr/lib`, the dynamic loader's default path,
+so the NIF links `-lhailort` and resolves it like any system library.
 
 ## Licensing
 

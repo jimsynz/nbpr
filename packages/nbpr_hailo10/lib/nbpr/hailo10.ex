@@ -23,11 +23,12 @@ defmodule NBPR.Hailo10 do
     cross-compilation (`expose_staging: true`).
 
   This is the Hailo-10H half of the chip-bifurcated HailoRT line; the Hailo-8/8L
-  counterpart is `:nbpr_hailo8`. The two runtimes/drivers are incompatible, but
-  one firmware image may ship both packages (their libs are namespaced per
-  package in `priv`); a VM session loads exactly one runtime. See the
-  `NBPR.Hailo8` moduledoc for how a NIF consumer loads `libhailort` from `priv`
-  at runtime (dlopen by absolute path with `RTLD_GLOBAL`).
+  counterpart is `:nbpr_hailo8`. The two runtimes/drivers are incompatible, and
+  the two packages must not ship in the same firmware image — both route helper
+  libraries with identical sonames to `/usr/lib`, where the last overlay write
+  silently wins. Build one image per chip. `libhailort` sits on the loader's
+  default path, so a NIF just links `-lhailort` (see `NBPR.Hailo8` for a
+  consumer example).
   """
 
   use NBPR.BrPackage,
@@ -38,12 +39,11 @@ defmodule NBPR.Hailo10 do
     homepage: "https://github.com/hailo-ai/hailort",
     kernel_modules: ["hailo1x_pci"],
     expose_staging: true,
-    # Only the kernel firmware is routed to the rootfs (the in-kernel loader
-    # only searches /lib/firmware). Everything else — libhailort and its
-    # unversioned proto/spdlog helpers — stays in THIS package's priv, so the
-    # Hailo-8 and Hailo-10 runtimes can never collide in /usr/lib; a NIF
-    # consumer pre-loads the right version from here by absolute path.
-    rootfs_paths: ["lib/firmware"],
+    # Firmware goes where the in-kernel loader looks; the shared libraries go
+    # to /usr/lib, the loader's default path, so a NIF linking -lhailort
+    # resolves them with no loader tricks. This is why only one hailo package
+    # can ship per firmware image (see moduledoc).
+    rootfs_paths: ["lib/firmware", "usr/lib"],
     targets: [:rpi5],
     artifact_sites: [{:ghcr, "ghcr.io/jimsynz/nbpr"}]
 end
