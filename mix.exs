@@ -32,7 +32,8 @@ defmodule NBPR.Workspace.MixProject do
     rpi4: {"nerves-project/nerves_system_rpi4", "2.1.0"},
     rpi5: {"nerves-project/nerves_system_rpi5", "2.1.0"},
     bbb: {"nerves-project/nerves_system_bbb", "2.30.0"},
-    x86_64: {"nerves-project/nerves_system_x86_64", "1.34.0"}
+    x86_64: {"nerves-project/nerves_system_x86_64", "1.34.0"},
+    qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.4.0"}
   }
 
   @doc """

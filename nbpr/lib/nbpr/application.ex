@@ -28,25 +28,22 @@ defmodule NBPR.Application do
     Supervisor.start_link([], strategy: :one_for_one, name: __MODULE__)
   end
 
+  # Binaries can land in any of these (Buildroot installs to bin/sbin AND
+  # usr/bin/usr/sbin), and libraries in lib OR usr/lib. These MUST match
+  # `NBPR.Artifact.LibCheck`'s notion of "provided" (it counts usr/lib + lib),
+  # or the firmware-time check passes for a soname/binary that's then invisible
+  # at runtime.
+  @bin_subdirs ~w(bin sbin usr/bin usr/sbin)
+  @lib_subdirs ~w(lib usr/lib)
+
   @doc false
   @spec setup_env!() :: :ok
   def setup_env! do
     packages = nbpr_packages()
     priv_dirs = Enum.map(packages, & &1.priv)
 
-    # The non-merged-usr Nerves skeleton means Buildroot packages install
-    # into all four (e.g. kmod's tool symlinks land in `sbin/`).
-    paths =
-      for dir <- ["usr/bin", "usr/sbin", "bin", "sbin"],
-          priv <- priv_dirs,
-          path = Path.join(priv, dir),
-          File.dir?(path),
-          do: path
-
-    lib_paths =
-      priv_dirs
-      |> Enum.map(&Path.join(&1, "usr/lib"))
-      |> Enum.filter(&File.dir?/1)
+    paths = subdirs(priv_dirs, @bin_subdirs)
+    lib_paths = subdirs(priv_dirs, @lib_subdirs)
 
     prepend_env("PATH", paths)
     prepend_env("LD_LIBRARY_PATH", lib_paths)
@@ -71,6 +68,10 @@ defmodule NBPR.Application do
   @spec expand(String.t(), Path.t()) :: String.t()
   def expand(template, priv) do
     String.replace(template, "${NBPR_PRIV}", priv)
+  end
+
+  defp subdirs(priv_dirs, subdirs) do
+    for priv <- priv_dirs, sub <- subdirs, dir = Path.join(priv, sub), File.dir?(dir), do: dir
   end
 
   defp nbpr_packages do
