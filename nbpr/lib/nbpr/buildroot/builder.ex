@@ -87,7 +87,9 @@ defmodule NBPR.Buildroot.Builder do
     end
 
     sources = categorise!(merged, pkg.rootfs_paths)
-    Pack.pack!(inputs, sources, output_dir)
+    tarball = Pack.pack!(inputs, sources, output_dir)
+    File.rm_rf!(merged)
+    tarball
   end
 
   @doc """

@@ -52,19 +52,19 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     system_version = system_version!(system_app)
     packages = discover_packages()
 
+    # Start from a clean rootfs overlay so files a package no longer ships
+    # (or shipped before being removed from deps entirely) don't linger from
+    # a previous run. Safe to wipe: `mix firmware` (which the standard
+    # `firmware: ["nbpr.fetch", "firmware"]` alias runs next) re-writes
+    # Nerves' own contribution (erlinit.config) into this dir.
+    File.rm_rf!(build_rootfs_overlay_dir())
+
     case packages do
       [] ->
         Mix.shell().info("[nbpr] no nbpr packages in deps; nothing to fetch.")
         :ok
 
       packages ->
-        # Start from a clean rootfs overlay so files a package no longer ships
-        # (e.g. after a firmware-path or routing change) don't linger from a
-        # previous run. Safe to wipe: `mix firmware` (which the standard
-        # `firmware: ["nbpr.fetch", "firmware"]` alias runs next) re-writes
-        # Nerves' own contribution (erlinit.config) into this dir.
-        File.rm_rf!(build_rootfs_overlay_dir())
-
         Enum.each(packages, fn {app, module} ->
           install_to_priv!(app, module, system_app, system_version)
         end)
