@@ -84,9 +84,10 @@ defmodule NBPR.Buildroot.Build do
       )
 
       FilesList.copy!(
-        Path.join(pp_src, "staging"),
+        staging_src(pp_src),
         Path.join(pp_dst, "staging"),
-        Path.join(build_dir, ".files-list-staging.txt")
+        Path.join(build_dir, ".files-list-staging.txt"),
+        keep_dev: true
       )
 
       collect_legal_info!(output_dir, br_package, pp_dst)
@@ -171,6 +172,17 @@ defmodule NBPR.Buildroot.Build do
 
       many ->
         raise "multiple build dirs match #{pattern}: #{inspect(many)}"
+    end
+  end
+
+  # Locates the per-package STAGING_DIR. With a Nerves (external) toolchain,
+  # `STAGING_DIR` is the toolchain sysroot at `<pp>/host/<tuple>/sysroot`, not a
+  # separate `<pp>/staging` dir — that's where `.files-list-staging.txt` paths
+  # are rooted. Falls back to `<pp>/staging` for an internal toolchain.
+  defp staging_src(pp_src) do
+    case Path.wildcard(Path.join(pp_src, "host/*/sysroot")) do
+      [dir | _] -> dir
+      [] -> Path.join(pp_src, "staging")
     end
   end
 

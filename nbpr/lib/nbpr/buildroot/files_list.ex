@@ -41,9 +41,11 @@ defmodule NBPR.Buildroot.FilesList do
   When the files-list doesn't exist, returns `:ok` without copying anything
   — caller decides whether that's an error.
   """
-  @spec copy!(Path.t(), Path.t(), Path.t()) :: :ok
-  def copy!(src_root, dst_root, files_list_path)
+  @spec copy!(Path.t(), Path.t(), Path.t(), keyword()) :: :ok
+  def copy!(src_root, dst_root, files_list_path, opts \\ [])
       when is_binary(src_root) and is_binary(dst_root) and is_binary(files_list_path) do
+    keep_dev = Keyword.get(opts, :keep_dev, false)
+
     if File.regular?(files_list_path) do
       File.mkdir_p!(dst_root)
 
@@ -51,7 +53,7 @@ defmodule NBPR.Buildroot.FilesList do
       |> File.stream!()
       |> Stream.map(&parse_line/1)
       |> Stream.reject(&is_nil/1)
-      |> Stream.reject(&filter_out?/1)
+      |> Stream.reject(&filter_out?(&1, keep_dev))
       |> Enum.each(&copy_one!(src_root, dst_root, &1))
     end
 
@@ -72,10 +74,19 @@ defmodule NBPR.Buildroot.FilesList do
     end
   end
 
-  defp filter_out?(rel) do
+  # `keep_dev: true` (the staging tree) retains headers, pkg-config, and CMake
+  # config files so a consumer NIF can cross-compile against a shipped library.
+  # Docs/manpages and libtool archives are dropped either way.
+  defp filter_out?(rel, true), do: doc_path?(rel)
+  defp filter_out?(rel, false), do: dev_path?(rel) or doc_path?(rel)
+
+  defp dev_path?(rel) do
     String.starts_with?(rel, "usr/include/") or
-      String.starts_with?(rel, "usr/lib/pkgconfig/") or
-      String.starts_with?(rel, "usr/share/doc/") or
+      String.starts_with?(rel, "usr/lib/pkgconfig/")
+  end
+
+  defp doc_path?(rel) do
+    String.starts_with?(rel, "usr/share/doc/") or
       String.starts_with?(rel, "usr/share/man/") or
       String.starts_with?(rel, "usr/share/info/") or
       String.ends_with?(rel, ".la")
