@@ -5,10 +5,11 @@ rootfs" to "the binary is published as `:nbpr_<name>` in the `nbpr` Hex
 organisation". It assumes you know what Nerves and Buildroot are, can
 build a Nerves firmware, and have a clone of this repo.
 
-If the package isn't in upstream Buildroot mainline, this flow won't
-work — `mix nbpr.new` reads metadata from a mainline Buildroot tree.
-A vendored-package guide is on the to-do list; for now, treat
-out-of-tree packages as out of scope here.
+This guide covers **mainline** Buildroot packages, scaffolded with
+`mix nbpr.new` (which reads metadata from a mainline Buildroot tree). If
+the package isn't in upstream Buildroot, see
+[Vendored (out-of-tree) packages](#vendored-out-of-tree-packages) at the
+end — you ship a `buildroot/` external tree with the package instead.
 
 ## Prerequisites
 
@@ -208,3 +209,65 @@ You don't tag or publish manually.
   to underscored module names (`NBPR.KernelModules`) and underscored
   Hex package names (`nbpr_kernel_modules`). The generator handles the
   mapping; pass the BR-style hyphenated name to `mix nbpr.new`.
+
+## Vendored (out-of-tree) packages
+
+When the upstream isn't in Buildroot mainline, you ship the Buildroot
+recipes yourself as a `BR2_EXTERNAL` tree inside the package, and the
+metadata module points at it instead of naming a mainline package.
+`:nbpr_hailo8` (the Hailo-8 HailoRT runtime + PCIe driver + firmware) is
+the worked example.
+
+Layout — a `buildroot/` dir at the package root:
+
+    packages/nbpr_<name>/
+      buildroot/
+        external.desc            # name: NBPR_<NAME>
+        external.mk              # include $(sort $(wildcard $(BR2_EXTERNAL_NBPR_<NAME>_PATH)/package/*/*.mk))
+        Config.in               # source each package's Config.in
+        package/<pkg>/{Config.in,<pkg>.mk,<pkg>.hash, *.patch}
+        ...
+      lib/nbpr/<name>.ex
+      mix.exs                    # `files:` must include "buildroot"
+
+The metadata module uses `:br_external_path` + `:br_packages` instead of
+`:br_package`:
+
+```elixir
+use NBPR.BrPackage,
+  version: 1,
+  br_external_path: "buildroot",
+  # Buildroot packages to build, in dependency order; their per-package
+  # outputs are merged into one artefact.
+  br_packages: ["spdlog_hailort", "hailort", "hailort-firmware", "hailort-drivers"],
+  description: "...",
+  kernel_modules: ["hailo_pci"],   # insmod'd from priv at boot (see below)
+  expose_staging: true,            # ship headers/libs for a consumer NIF
+  targets: [:rpi5],                # restrict the prebuild matrix
+  artifact_sites: [{:ghcr, "ghcr.io/jimsynz/nbpr"}]
+```
+
+Notes specific to vendored packages:
+
+- **One nbpr package → many Buildroot packages.** `:br_packages` lists
+  them in dependency order; each is enabled in the defconfig, built, and
+  its files-list-filtered output merged. `BR2_EXTERNAL` gets the
+  package's `buildroot/` tree appended automatically.
+- **Hashes.** Provide a `<pkg>.hash` for each recipe (Buildroot verifies
+  downloads). GitHub-archive and S3 blobs are reproducible; compute with
+  `sha256sum` on the actual download.
+- **Kernel modules** declared in `kernel_modules:` are loaded at boot by
+  `insmod`'ing the `.ko` shipped in the package's `priv/` (an out-of-tree
+  module won't be in the system's `modules.dep`, so `modprobe` can't find
+  it). A kernel-module Buildroot package pulls in and builds `linux`
+  automatically — the first source-build is slow, then cached.
+- **Firmware** installed under `target/lib/firmware/` is routed to the
+  real rootfs (`/lib/firmware`), where the kernel firmware loader looks.
+- **`expose_staging: true`** ships the sysroot (headers, dev `.so`,
+  CMake/pkg-config) to `priv/staging` so a consumer NIF can
+  cross-compile against the shipped library.
+- **Set the package app's `mod:`** to the generated
+  `NBPR.<Name>.Application` in `mix.exs` so the kmod load runs at boot.
+
+There's no `mix nbpr.new` for vendored packages yet — copy an existing
+one (`packages/nbpr_hailo8`) as the template.

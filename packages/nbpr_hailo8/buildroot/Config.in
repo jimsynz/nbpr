@@ -1,0 +1,4 @@
+source "$BR2_EXTERNAL_NBPR_HAILO8_PATH/package/spdlog_hailort/Config.in"
+source "$BR2_EXTERNAL_NBPR_HAILO8_PATH/package/hailort/Config.in"
+source "$BR2_EXTERNAL_NBPR_HAILO8_PATH/package/hailort-firmware/Config.in"
+source "$BR2_EXTERNAL_NBPR_HAILO8_PATH/package/hailort-drivers/Config.in"

@@ -52,6 +52,13 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     system_version = system_version!(system_app)
     packages = discover_packages()
 
+    # Start from a clean rootfs overlay so files a package no longer ships
+    # (or shipped before being removed from deps entirely) don't linger from
+    # a previous run. Safe to wipe: `mix firmware` (which the standard
+    # `firmware: ["nbpr.fetch", "firmware"]` alias runs next) re-writes
+    # Nerves' own contribution (erlinit.config) into this dir.
+    File.rm_rf!(build_rootfs_overlay_dir())
+
     case packages do
       [] ->
         Mix.shell().info("[nbpr] no nbpr packages in deps; nothing to fetch.")
@@ -78,6 +85,14 @@ defmodule Mix.Tasks.Nbpr.Fetch do
   defp check_shared_libraries(packages) do
     base_dirs = LibCheck.base_lib_dirs(apply(Nerves.Env, :system_path, []))
 
+    # Libraries a package routes to the rootfs (via `rootfs_paths`, e.g. a
+    # NIF-linked `usr/lib`) don't land in any priv/ — they go to the firmware's
+    # rootfs overlay, i.e. the device's default loader path (/usr/lib). Count
+    # them as provided, otherwise a package that correctly ships its lib to the
+    # rootfs gets falsely flagged as missing it.
+    overlay = build_rootfs_overlay_dir()
+    overlay_dirs = for sub <- ~w(usr/lib lib), do: Path.join(overlay, sub)
+
     cond do
       not Elf.available?() ->
         Mix.shell().info("[nbpr] readelf not found; skipping shared-library check")
@@ -88,7 +103,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       true ->
         staged = Enum.map(packages, fn {app, _module} -> {app, priv_dir_for(app)} end)
 
-        case LibCheck.missing(base_dirs, staged) do
+        case LibCheck.missing(base_dirs ++ overlay_dirs, staged) do
           [] -> :ok
           missing -> warn_missing_libraries(missing)
         end
@@ -190,6 +205,7 @@ defmodule Mix.Tasks.Nbpr.Fetch do
     cache_dir = Artifact.cache_dir(inputs)
 
     install_target!(cache_dir, app)
+    install_staging!(cache_dir, app, pkg)
     install_rootfs!(cache_dir)
   end
 
@@ -250,6 +266,23 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       overlay_dest = build_rootfs_overlay_dir()
       File.mkdir_p!(overlay_dest)
       File.cp_r!(rootfs_src, overlay_dest)
+    end
+  end
+
+  # Packages that opt into `expose_staging: true` ship their sysroot (headers,
+  # dev symlinks, CMake/pkg-config) so a consumer NIF can cross-compile against
+  # the shipped library. It lands at `priv/staging/{usr/include,usr/lib,...}`;
+  # the consumer points its compiler/linker there. Runs after `install_target!`,
+  # which wipes priv.
+  defp install_staging!(_cache_dir, _app, %{expose_staging: false}), do: :ok
+
+  defp install_staging!(cache_dir, app, %{expose_staging: true}) do
+    staging_src = Path.join(cache_dir, "staging")
+
+    if File.dir?(staging_src) do
+      dest = Path.join(priv_dir_for(app), "staging")
+      File.mkdir_p!(dest)
+      File.cp_r!(staging_src, dest)
     end
   end
 end

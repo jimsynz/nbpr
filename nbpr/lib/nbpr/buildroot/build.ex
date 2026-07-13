@@ -160,25 +160,30 @@ defmodule NBPR.Buildroot.Build do
     |> Enum.sort()
   end
 
+  # Anchor the version with a leading digit so `hailort-*` doesn't also match
+  # `hailort-drivers-*`, and pick the freshest dir by mtime so the just-built
+  # version wins over a stale same-named dir left in the shared (system,
+  # BR-version) output by another nbpr package (e.g. nbpr_hailo8's
+  # `hailort-4.24.0` vs nbpr_hailo10's `hailort-5.3.0`). Mirrors the Docker
+  # path's build-dir selection in NBPR.Buildroot.Docker.
   defp locate_build_dir!(output_dir, br_package) do
-    pattern = Path.join([output_dir, "build", "#{br_package}-*"])
+    pattern = Path.join([output_dir, "build", "#{br_package}-[0-9]*"])
 
     case Path.wildcard(pattern) |> Enum.filter(&File.dir?/1) do
-      [dir] ->
-        dir
-
       [] ->
         raise "could not locate build dir for #{br_package} under #{Path.dirname(pattern)}"
 
-      many ->
-        raise "multiple build dirs match #{pattern}: #{inspect(many)}"
+      dirs ->
+        Enum.max_by(dirs, fn dir -> File.stat!(dir, time: :posix).mtime end)
     end
   end
 
   # Locates the per-package STAGING_DIR. With a Nerves (external) toolchain,
   # `STAGING_DIR` is the toolchain sysroot at `<pp>/host/<tuple>/sysroot`, not a
   # separate `<pp>/staging` dir — that's where `.files-list-staging.txt` paths
-  # are rooted. Falls back to `<pp>/staging` for an internal toolchain.
+  # are rooted. Falls back to `<pp>/staging` for an internal toolchain. A build
+  # has one toolchain tuple; `Path.wildcard/1` returns sorted results, so the
+  # pick is deterministic even if several ever coexist.
   defp staging_src(pp_src) do
     case Path.wildcard(Path.join(pp_src, "host/*/sysroot")) do
       [dir | _] -> dir

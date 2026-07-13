@@ -1,0 +1,7 @@
+config BR2_PACKAGE_HAILORT_FIRMWARE
+	bool "hailort-firmware"
+	help
+	  Hailo-8 device firmware blob, loaded onto the accelerator by the
+	  PCIe driver at probe time. Version-matched to HailoRT.
+
+	  https://github.com/hailo-ai/hailort-drivers/blob/hailo8/download_firmware.sh

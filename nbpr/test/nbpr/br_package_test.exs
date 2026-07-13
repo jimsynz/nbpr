@@ -76,6 +76,16 @@ defmodule NBPR.BrPackageTest do
       ]
   end
 
+  defmodule TestVendored do
+    use NBPR.BrPackage,
+      version: 1,
+      br_external_path: "buildroot",
+      br_packages: ["spdlog_hailort", "hailort", "hailort-drivers"],
+      description: "test vendored multi-package external tree",
+      kernel_modules: ["hailo_pci"],
+      expose_staging: true
+  end
+
   describe "__nbpr_package__/0 — daemonless" do
     test "returns metadata struct with the expected fields" do
       pkg = TestDaemonless.__nbpr_package__()
@@ -201,6 +211,17 @@ defmodule NBPR.BrPackageTest do
       assert TestWithKmods.Application.kernel_modules() == ["spl", "zfs"]
     end
 
+    test "declaring kernel_modules keeps the .ko in priv (not routed to rootfs)" do
+      # NBPR.Runtime.load_kernel_module!/2 insmods the priv-shipped .ko by
+      # path, so kernel_modules must NOT route lib/modules to the rootfs —
+      # only explicitly declared rootfs_paths are routed.
+      refute "lib/modules" in TestWithKmods.__nbpr_package__().rootfs_paths
+    end
+
+    test "packages without kernel_modules do not route lib/modules" do
+      refute "lib/modules" in TestDaemonless.__nbpr_package__().rootfs_paths
+    end
+
     test "start/2 succeeds on dev host (modprobe gated off)" do
       assert {:ok, pid} = TestWithKmods.Application.start(:normal, [])
       assert is_pid(pid)
@@ -208,6 +229,28 @@ defmodule NBPR.BrPackageTest do
 
       assert TestWithKmods.Application.stop(nil) == :ok
       Supervisor.stop(pid)
+    end
+  end
+
+  describe "__nbpr_package__/0 — vendored" do
+    test "carries br_external_path, br_packages, and expose_staging" do
+      pkg = TestVendored.__nbpr_package__()
+
+      assert pkg.br_package == nil
+      assert pkg.br_external_path == "buildroot"
+      assert pkg.br_packages == ["spdlog_hailort", "hailort", "hailort-drivers"]
+      assert pkg.expose_staging == true
+      assert pkg.kernel_modules == ["hailo_pci"]
+    end
+
+    test "br_targets/1 returns the vendored package list in order" do
+      pkg = TestVendored.__nbpr_package__()
+      assert Package.br_targets(pkg) == ["spdlog_hailort", "hailort", "hailort-drivers"]
+    end
+
+    test "br_targets/1 returns the single mainline package" do
+      pkg = TestDaemonless.__nbpr_package__()
+      assert Package.br_targets(pkg) == ["jq"]
     end
   end
 
@@ -232,6 +275,33 @@ defmodule NBPR.BrPackageTest do
         defmodule NBPR.BrPackageTest.Neither do
           use NBPR.BrPackage,
             version: 1,
+            description: "x"
+        end
+        """)
+      end
+    end
+
+    test "rejects :br_external_path without :br_packages" do
+      assert_raise ArgumentError, ~r/:br_external_path requires a non-empty :br_packages/, fn ->
+        Code.eval_string("""
+        defmodule NBPR.BrPackageTest.VendoredNoPackages do
+          use NBPR.BrPackage,
+            version: 1,
+            br_external_path: "buildroot",
+            description: "x"
+        end
+        """)
+      end
+    end
+
+    test "rejects :br_packages without :br_external_path" do
+      assert_raise ArgumentError, ~r/:br_packages is only valid with :br_external_path/, fn ->
+        Code.eval_string("""
+        defmodule NBPR.BrPackageTest.MainlineWithPackages do
+          use NBPR.BrPackage,
+            version: 1,
+            br_package: "jq",
+            br_packages: ["jq"],
             description: "x"
         end
         """)

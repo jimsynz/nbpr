@@ -30,6 +30,8 @@ defmodule NBPR.Workspace.MixProject do
     rpi3: {"nerves-project/nerves_system_rpi3", "2.1.0"},
     rpi3a: {"nerves-project/nerves_system_rpi3a", "2.1.0"},
     rpi4: {"nerves-project/nerves_system_rpi4", "2.1.0"},
+    # v2.1.0 dropped the bundled Hailo AI drivers — required so an nbpr_hailo*
+    # package can supply HailoRT without colliding with a system-baked copy.
     rpi5: {"nerves-project/nerves_system_rpi5", "2.1.0"},
     bbb: {"nerves-project/nerves_system_bbb", "2.30.0"},
     x86_64: {"nerves-project/nerves_system_x86_64", "1.34.0"},

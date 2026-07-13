@@ -1,0 +1,7 @@
+config BR2_PACKAGE_HAILORT_FIRMWARE
+	bool "hailort-firmware"
+	help
+	  Hailo-10H firmware bundle (u-boot, SCU, fitImage, signed DTBs).
+	  Version-matched to HailoRT v5.
+
+	  https://github.com/hailo-ai/hailort-drivers/blob/master/download_firmware_hailo10h.sh

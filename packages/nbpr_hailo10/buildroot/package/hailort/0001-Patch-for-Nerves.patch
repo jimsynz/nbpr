@@ -1,0 +1,124 @@
+From 942140366374678d4e089b6e6869a153f6f398c9 Mon Sep 17 00:00:00 2001
+From: Nerves <n@n>
+Date: Tue, 7 Jul 2026 11:43:16 +0200
+Subject: [PATCH] Patch for Nerves (HailoRT 5.3.0)
+
+---
+ hailort/common/CMakeLists.txt                 |  6 +++-
+ .../common/genai/serializer/CMakeLists.txt    |  5 +--
+ hailort/libhailort/CMakeLists.txt             | 33 +++++++++++--------
+ hailort/libhailort/src/CMakeLists.txt         | 11 +++++++
+ 4 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/hailort/common/CMakeLists.txt b/hailort/common/CMakeLists.txt
+index 46b720a..9ba7757 100644
+--- a/hailort/common/CMakeLists.txt
++++ b/hailort/common/CMakeLists.txt
+@@ -1,6 +1,10 @@
+ cmake_minimum_required(VERSION 3.5.0)
+ 
+-include(${HAILO_EXTERNALS_CMAKE_SCRIPTS}/spdlog.cmake)
++# Nerves: link against the Buildroot-built spdlog shared library rather than
++# the bundled header-only fetch, so libhailort resolves libspdlog.so at runtime.
++get_filename_component(NERVES_TOOLCHAIN_DIR "${CMAKE_TOOLCHAIN_FILE}" DIRECTORY)
++set(spdlog_DIR "${NERVES_TOOLCHAIN_DIR}/../../../target/${CMAKE_INSTALL_PREFIX}/lib/cmake/spdlog/")
++find_package(spdlog REQUIRED)
+ include(${HAILO_EXTERNALS_CMAKE_SCRIPTS}/readerwriterqueue.cmake)
+ include(${HAILO_EXTERNALS_CMAKE_SCRIPTS}/xxhash.cmake)
+ include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/common_compiler_options.cmake)
+diff --git a/hailort/common/genai/serializer/CMakeLists.txt b/hailort/common/genai/serializer/CMakeLists.txt
+index 291bca5..19556c2 100644
+--- a/hailort/common/genai/serializer/CMakeLists.txt
++++ b/hailort/common/genai/serializer/CMakeLists.txt
+@@ -15,8 +15,9 @@ endif()
+ get_filename_component(PROTO_HEADER_DIRECTORY ${PROTO_GENAI_HEADER} DIRECTORY)
+ target_include_directories(genai_scheme_proto
+     PUBLIC
+-    $<BUILD_INTERFACE: ${PROTO_HEADER_DIRECTORY}>
+-    $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
++    $<BUILD_INTERFACE:${PROTO_HEADER_DIRECTORY}>
++    # Nerves: Protobuf_INCLUDE_DIRS unset; drop the malformed genex.
++    # $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
+ )
+ 
+ set(SRC_FILES
+diff --git a/hailort/libhailort/CMakeLists.txt b/hailort/libhailort/CMakeLists.txt
+index 5055ce6..3d3de76 100644
+--- a/hailort/libhailort/CMakeLists.txt
++++ b/hailort/libhailort/CMakeLists.txt
+@@ -20,12 +20,15 @@ if(CMAKE_HOST_WIN32)
+     # https://github.com/protocolbuffers/protobuf/tree/master/cmake#notes-on-compiler-warnings
+     target_compile_options(hef_proto PRIVATE /wd4244)
+ endif()
+-get_filename_component(PROTO_HEADER_DIRECTORY ${PROTO_HEF_HEADER} DIRECTORY)
+-target_include_directories(hef_proto
+-    PUBLIC
+-    $<BUILD_INTERFACE: ${PROTO_HEADER_DIRECTORY}>
+-    $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
+-)
++# Nerves: Protobuf_INCLUDE_DIRS is unset (protobuf is vendored, not find_package'd),
++# leaving a malformed $<BUILD_INTERFACE: > genex that breaks the install export.
++# .pb.cc finds its own .pb.h via the compiler's quote-include default.
++# get_filename_component(PROTO_HEADER_DIRECTORY ${PROTO_HEF_HEADER} DIRECTORY)
++# target_include_directories(hef_proto
++#     PUBLIC
++#     $<BUILD_INTERFACE: ${PROTO_HEADER_DIRECTORY}>
++#     $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
++# )
+ 
+ protobuf_generate_cpp(PROTO_SCHEDULER_MON_SRC PROTO_SCHEDULER_MON_HEADR scheduler_mon.proto)
+ add_library(scheduler_mon_proto ${PROTO_SCHEDULER_MON_SRC} ${PROTO_SCHEDULER_MON_HEADR})
+@@ -34,12 +37,13 @@ set_target_properties(scheduler_mon_proto PROPERTIES CXX_STANDARD 17 GENERATED T
+ if(CMAKE_HOST_WIN32)
+     target_compile_options(scheduler_mon_proto PRIVATE /wd4244)
+ endif()
+-get_filename_component(PROTO_SCHEDULER_MON_HEADER_DIRECTORY ${PROTO_SCHEDULER_MON_HEADR} DIRECTORY)
+-target_include_directories(scheduler_mon_proto
+-    PUBLIC
+-    $<BUILD_INTERFACE: ${PROTO_SCHEDULER_MON_HEADER_DIRECTORY}>
+-    $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
+-)
++# Nerves: see hef_proto note above.
++# get_filename_component(PROTO_SCHEDULER_MON_HEADER_DIRECTORY ${PROTO_SCHEDULER_MON_HEADR} DIRECTORY)
++# target_include_directories(scheduler_mon_proto
++#     PUBLIC
++#     $<BUILD_INTERFACE: ${PROTO_SCHEDULER_MON_HEADER_DIRECTORY}>
++#     $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
++# )
+ 
+ protobuf_generate_cpp(PROTO_PROFILER_SRC PROTO_PROFILER_HEADR tracer_profiler.proto)
+ add_library(profiler_proto ${PROTO_PROFILER_SRC} ${PROTO_PROFILER_HEADR})
+@@ -51,8 +55,9 @@ endif()
+ get_filename_component(PROTO_PROFILER_HEADER_DIRECTORY ${PROTO_PROFILER_HEADR} DIRECTORY)
+ target_include_directories(profiler_proto
+     PUBLIC
+-    $<BUILD_INTERFACE: ${PROTO_PROFILER_HEADER_DIRECTORY}>
+-    $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
++    $<BUILD_INTERFACE:${PROTO_PROFILER_HEADER_DIRECTORY}>
++    # Nerves: Protobuf_INCLUDE_DIRS unset; drop the malformed genex.
++    # $<BUILD_INTERFACE: ${Protobuf_INCLUDE_DIRS}>
+ )
+ 
+ add_subdirectory(src)
+diff --git a/hailort/libhailort/src/CMakeLists.txt b/hailort/libhailort/src/CMakeLists.txt
+index cb39c24..2a81944 100644
+--- a/hailort/libhailort/src/CMakeLists.txt
++++ b/hailort/libhailort/src/CMakeLists.txt
+@@ -241,6 +241,17 @@ install(FILES
+     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HailoRT
+     COMPONENT libhailort
+ )
++# Nerves: libhailort links these proto static libs; they are not EXCLUDE_FROM_ALL,
++# so the HailoRTTargets export requires them to be installed and exported too.
++install(TARGETS hef_proto
++        EXPORT HailoRTTargets
++        DESTINATION ${CMAKE_INSTALL_LIBDIR})
++install(TARGETS profiler_proto
++        EXPORT HailoRTTargets
++        DESTINATION ${CMAKE_INSTALL_LIBDIR})
++install(TARGETS scheduler_mon_proto
++        EXPORT HailoRTTargets
++        DESTINATION ${CMAKE_INSTALL_LIBDIR})
+ install(EXPORT HailoRTTargets
+     FILE HailoRTTargets.cmake
+     NAMESPACE HailoRT::

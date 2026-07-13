@@ -50,20 +50,46 @@ defmodule NBPR.Buildroot.Builder do
     output_dir_br = stable_output_dir(inputs.system_app, br_version)
     defconfig_text = render_defconfig!(pkg, system_source_path, inputs.build_opts)
 
+    external_path = package_external_path(pkg)
+
+    # For a vendored package, the package's own BR external tree is appended to
+    # `BR2_EXTERNAL` (colon-separated) alongside `nerves_system_br`, so its
+    # `package/<name>/` definitions and `BR2_PACKAGE_*` symbols resolve.
+    br2_external =
+      [nerves_system_br_path, external_path]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(":")
+
     extra_env = [
       {"NERVES_DEFCONFIG_DIR", system_source_path},
-      {"BR2_EXTERNAL", nerves_system_br_path}
+      {"BR2_EXTERNAL", br2_external}
     ]
 
     deps_path = Mix.Project.deps_path()
+    extra_mounts = Enum.reject([deps_path, external_path], &is_nil/1)
 
-    harvest_dir =
-      Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env,
-        extra_mounts: [deps_path]
-      )
+    merged = merge_root!(output_dir, inputs)
 
-    sources = Harvest.harvest!(harvest_dir, pkg.br_package)
-    Pack.pack!(inputs, sources, output_dir)
+    # Build each Buildroot target (one for mainline, several for a vendored
+    # tree built in dependency order) and merge their per-package outputs into
+    # a single staging tree. Buildroot resolves each target's own dependencies
+    # — e.g. a kernel-module package pulls in and builds `linux` — so no
+    # special kernel handling is needed here.
+    for target <- NBPR.Package.br_targets(pkg) do
+      harvest_dir =
+        Build.build!(br_source, output_dir_br, defconfig_text, target, extra_env,
+          extra_mounts: extra_mounts
+        )
+
+      harvest_dir
+      |> Harvest.harvest!(target)
+      |> merge_sources!(merged)
+    end
+
+    sources = categorise!(merged, pkg.rootfs_paths)
+    tarball = Pack.pack!(inputs, sources, output_dir)
+    File.rm_rf!(merged)
+    tarball
   end
 
   @doc """
@@ -89,6 +115,109 @@ defmodule NBPR.Buildroot.Builder do
 
         Path.join(base, "nerves")
     end
+  end
+
+  defp package_external_path(%NBPR.Package{br_external_path: nil}), do: nil
+
+  defp package_external_path(%NBPR.Package{br_external_path: rel, name: name}) do
+    app = String.to_atom("nbpr_#{name}")
+
+    base =
+      case Map.get(Mix.Project.deps_paths(), app) do
+        nil ->
+          Mix.raise(
+            "could not locate the source directory for #{app}; it must be a " <>
+              "dependency of the current project for its vendored Buildroot tree to resolve"
+          )
+
+        path ->
+          path
+      end
+
+    abs = Path.expand(Path.join(base, rel))
+
+    unless File.dir?(abs) do
+      Mix.raise("vendored Buildroot external tree for #{app} not found at #{abs}")
+    end
+
+    abs
+  end
+
+  # Fresh per-build staging tree where each target's harvested output is
+  # overlaid. Lives under output_dir so the final rename in Pack stays on one
+  # filesystem.
+  defp merge_root!(output_dir, inputs) do
+    root = Path.join(output_dir, ".merged-#{inputs.package_name}")
+    File.rm_rf!(root)
+    File.mkdir_p!(root)
+    root
+  end
+
+  defp merge_sources!(sources, merged_root) do
+    Enum.each(sources, fn {key, src} ->
+      merge_tree!(src, Path.join(merged_root, dest_name(key)))
+    end)
+  end
+
+  defp dest_name(:target), do: "target"
+  defp dest_name(:staging), do: "staging"
+  defp dest_name(:rootfs), do: "rootfs"
+  defp dest_name(:legal_info), do: "legal-info"
+
+  # Recursive directory overlay that preserves symlinks and merges into any
+  # existing tree (unlike `File.cp_r!/2`, which nests when the destination
+  # already exists).
+  defp merge_tree!(src, dst) do
+    File.mkdir_p!(dst)
+
+    Enum.each(File.ls!(src), fn entry ->
+      s = Path.join(src, entry)
+      d = Path.join(dst, entry)
+
+      case File.lstat!(s) do
+        %File.Stat{type: :directory} ->
+          merge_tree!(s, d)
+
+        %File.Stat{type: :symlink} ->
+          File.mkdir_p!(Path.dirname(d))
+          _ = File.rm(d)
+          {:ok, link_target} = File.read_link(s)
+          File.ln_s!(link_target, d)
+
+        _ ->
+          File.mkdir_p!(Path.dirname(d))
+          _ = File.rm(d)
+          File.cp!(s, d)
+      end
+    end)
+  end
+
+  # Splits the merged tree into the `NBPR.Pack.sources()` categories, routing
+  # the package's `rootfs_paths` subtrees (firmware, NIF-linked libs) out of
+  # `target/` (→ priv) into `rootfs/` (→ the real rootfs).
+  defp categorise!(merged_root, rootfs_paths) do
+    target_dir = Path.join(merged_root, "target")
+    rootfs_dir = Path.join(merged_root, "rootfs")
+
+    Enum.each(rootfs_paths, fn rel ->
+      from = Path.join(target_dir, rel)
+
+      if File.dir?(from) do
+        to = Path.join(rootfs_dir, rel)
+        File.mkdir_p!(Path.dirname(to))
+        File.rename!(from, to)
+      end
+    end)
+
+    %{}
+    |> put_if_dir(:target, target_dir)
+    |> put_if_dir(:staging, Path.join(merged_root, "staging"))
+    |> put_if_dir(:rootfs, rootfs_dir)
+    |> put_if_dir(:legal_info, Path.join(merged_root, "legal-info"))
+  end
+
+  defp put_if_dir(map, key, path) do
+    if File.dir?(path), do: Map.put(map, key, path), else: map
   end
 
   defp render_defconfig!(pkg, system_source_path, build_opts) do
