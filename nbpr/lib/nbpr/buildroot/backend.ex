@@ -20,6 +20,14 @@ defmodule NBPR.Buildroot.Backend do
 
   Adding a new style of builder (e.g. Apple's `container`, a Windows runtime) is
   a matter of implementing this behaviour and listing it in `@backends`.
+
+  ## Overriding the choice
+
+  Set `NBPR_BUILD_BACKEND` to a backend's short name (`shell`, `docker`,
+  `podman`) to force that backend, bypassing the auto-detect ordering. This is
+  handy when more than one runtime is present (e.g. force `podman` when `docker`
+  would otherwise win) or to force a native build outside the canonical env. The
+  chosen backend's `build!/1` still fails loudly if it genuinely can't run.
   """
 
   alias NBPR.Buildroot.Backend.{Docker, Podman, Shell}
@@ -46,14 +54,37 @@ defmodule NBPR.Buildroot.Backend do
   # container), otherwise the first available container runtime is used.
   @backends [Shell, Docker, Podman]
 
-  @doc """
-  Returns the first backend that can run in the current environment.
+  @env_var "NBPR_BUILD_BACKEND"
 
-  Raises with guidance if none are available.
+  @doc """
+  Returns the backend to use.
+
+  Honours a `NBPR_BUILD_BACKEND` override if set (see the module docs);
+  otherwise returns the first backend that can run in the current environment.
+  Raises with guidance if the override is unknown or no backend is available.
   """
   @spec select() :: module()
   def select do
-    Enum.find(@backends, &apply(&1, :available?, [])) || raise no_backend_message()
+    case System.get_env(@env_var) do
+      name when name in [nil, ""] -> auto_select()
+      name -> forced_backend!(name)
+    end
+  end
+
+  defp auto_select do
+    Enum.find(@backends, & &1.available?()) || raise no_backend_message()
+  end
+
+  defp forced_backend!(name) do
+    Enum.find(@backends, &(backend_name(&1) == name)) ||
+      raise """
+      Unknown #{@env_var}=#{inspect(name)}. Valid backends: \
+      #{@backends |> Enum.map(&backend_name/1) |> Enum.join(", ")}.
+      """
+  end
+
+  defp backend_name(backend) do
+    backend |> Module.split() |> List.last() |> Macro.underscore()
   end
 
   defp no_backend_message do
