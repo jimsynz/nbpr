@@ -147,6 +147,15 @@ defmodule NBPR.Buildroot.Backend.Shell do
     end
   end
 
+  # Buildroot owns TARGET_ABI — it composes `$(TARGET_ABI)` into TARGET_CFLAGS
+  # and derives the value from the defconfig. Nerves also exports TARGET_ABI to
+  # the environment for the active target (e.g. "gnu" on rpi4), and `make`
+  # imports environment variables as make variables — so an inherited TARGET_ABI
+  # lands as a bare token in every target compile/link line (`ld: cannot find
+  # gnu`). The container backend forwards only the explicit build env and never
+  # sees it; unset it here so the native path matches.
+  @scrubbed_env [{"TARGET_ABI", nil}]
+
   defp run_make!(cwd, output_dir, env, targets) do
     args = Build.make_args(output_dir, targets)
     cmd = "make #{Enum.join(args, " ")}"
@@ -154,7 +163,7 @@ defmodule NBPR.Buildroot.Backend.Shell do
 
     case System.cmd("make", args,
            cd: cwd,
-           env: env,
+           env: env ++ @scrubbed_env,
            into: IO.stream(:stdio, :line),
            stderr_to_stdout: true
          ) do
