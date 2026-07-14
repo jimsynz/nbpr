@@ -28,8 +28,10 @@ defmodule Mix.Tasks.Nbpr.Build do
 
   - `MIX_TARGET` set to a real Nerves target (not `:host`).
   - `deps/nerves_system_br/` and `deps/<system>/` resolved (`mix deps.get`).
-  - Either Linux + inside `mix nerves.system.shell`, or `docker` on PATH
-    (any host) — only needed when no cache hit is found.
+  - Either Linux + inside `mix nerves.system.shell`, or a container runtime
+    (`docker`/`podman`) on PATH (any host) — only needed when no cache hit is
+    found. Set `NBPR_BUILD_BACKEND` (`shell`/`docker`/`podman`) to force a
+    specific backend instead of auto-detecting.
 
   ## Flags
 

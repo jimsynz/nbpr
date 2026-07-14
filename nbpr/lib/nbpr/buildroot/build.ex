@@ -5,8 +5,13 @@ defmodule NBPR.Buildroot.Build do
   Given a patched BR source tree (from `NBPR.Buildroot.Source.ensure!/2`),
   a stable output dir, a rendered defconfig (from
   `NBPR.Buildroot.Defconfig.render!/3`), and a Buildroot package name,
-  runs `make olddefconfig` followed by `make <pkg>-rebuild` to produce
-  per-package output at `<output_dir>/per-package/<pkg>/{target,staging}`.
+  produces per-package output at
+  `<output_dir>/per-package/<pkg>/{target,staging}`.
+
+  The actual build is delegated to a `NBPR.Buildroot.Backend` — native `make`
+  inside the canonical env, or a container runtime (docker/podman) elsewhere.
+  `NBPR.Buildroot.Backend.select/0` picks the appropriate one. This module owns
+  the shared build env and the `spec` hand-off.
 
   ## Output dir reuse
 
@@ -16,21 +21,16 @@ defmodule NBPR.Buildroot.Build do
   between invocations and only the package being rebuilt actually
   compiles. `make olddefconfig` reconciles defconfig drift across
   builds (e.g. enabling a different `BR2_PACKAGE_*=y`).
-
-  When invoked outside the Nerves canonical build env (`mix nerves.system.shell`),
-  delegates `make` invocations to `NBPR.Buildroot.Docker`, which runs them
-  inside `ghcr.io/nerves-project/nerves_system_br:latest`. Detection is
-  via `NBPR.Buildroot.Docker.in_canonical_env?/0` — the native path is
-  taken inside the canonical container and the Docker path everywhere else.
   """
 
-  alias NBPR.Buildroot.Docker
-  alias NBPR.Buildroot.FilesList
+  alias NBPR.Buildroot.Backend
   alias NBPR.Buildroot.Source
 
   @doc """
   Builds `br_package` against `defconfig_text` using the BR tree at
-  `br_source`, with output going to `output_dir`. Returns `output_dir`.
+  `br_source`, with output going to `output_dir`. Returns the harvest dir
+  (containing `per-package/<br_package>/`), ready for
+  `NBPR.Buildroot.Harvest.harvest!/2`.
 
   `extra_env` is merged into the make invocation's env. Use it to pass
   Nerves-specific variables that the system's defconfig references —
@@ -42,86 +42,25 @@ defmodule NBPR.Buildroot.Build do
   this is the design — so subsequent builds reuse the toolchain,
   skeleton, and other unchanging packages. To force from-scratch,
   `File.rm_rf!(output_dir)` before calling.
+
+  `opts` accepts `:extra_mounts` — additional host paths a container backend
+  bind-mounts at the same path inside the container.
   """
   @spec build!(Path.t(), Path.t(), String.t(), String.t(), [{String.t(), String.t()}], keyword()) ::
           Path.t()
   def build!(br_source, output_dir, defconfig_text, br_package, extra_env \\ [], opts \\ [])
       when is_binary(br_source) and is_binary(output_dir) and is_binary(defconfig_text) and
              is_binary(br_package) and is_list(extra_env) do
-    env = build_env() ++ extra_env
-    extra_mounts = Keyword.get(opts, :extra_mounts, [])
+    spec = %{
+      br_source: br_source,
+      output_dir: output_dir,
+      defconfig_text: defconfig_text,
+      br_package: br_package,
+      env: build_env() ++ extra_env,
+      extra_mounts: Keyword.get(opts, :extra_mounts, [])
+    }
 
-    if Docker.in_canonical_env?() do
-      ensure_linux!()
-      File.mkdir_p!(output_dir)
-      File.write!(Path.join(output_dir, ".config"), defconfig_text)
-      run_make!(br_source, output_dir, env, ["olddefconfig"])
-
-      # `<pkg>-dirclean && <pkg>` (not `<pkg>-rebuild`) so BR snapshots the
-      # before/after target trees and writes a populated `.files-list*.txt`.
-      # See NBPR.Buildroot.FilesList for the rationale.
-      run_make!(br_source, output_dir, env, ["#{br_package}-dirclean"])
-      run_make!(br_source, output_dir, env, [br_package])
-
-      # Best-effort: packages without `FOO_LICENSE_FILES` declared get no output.
-      _ =
-        try do
-          run_make!(br_source, output_dir, env, ["#{br_package}-legal-info"])
-        rescue
-          _ -> :ok
-        end
-
-      extract_dir = output_dir <> ".extract"
-      File.rm_rf!(extract_dir)
-      build_dir = locate_build_dir!(output_dir, br_package)
-      pp_src = Path.join([output_dir, "per-package", br_package])
-      pp_dst = Path.join([extract_dir, "per-package", br_package])
-
-      FilesList.copy!(
-        Path.join(pp_src, "target"),
-        Path.join(pp_dst, "target"),
-        Path.join(build_dir, ".files-list.txt")
-      )
-
-      FilesList.copy!(
-        staging_src(pp_src),
-        Path.join(pp_dst, "staging"),
-        Path.join(build_dir, ".files-list-staging.txt"),
-        keep_dev: true
-      )
-
-      collect_legal_info!(output_dir, br_package, pp_dst)
-
-      extract_dir
-    else
-      # Docker path: run BR build in a named volume (so hardlinks work),
-      # extract per-package output to a host-accessible bind-mount dir.
-      #
-      # `extract_dir` MUST be a sibling of `output_dir`, never nested inside.
-      # `output_dir` is mounted as a Docker named volume; bind-mounting another
-      # path at a subpath of that volume creates filesystem-layering ambiguity
-      # (e.g. `rm -rf` inside the container only affects the overlay, not the
-      # underlying volume contents at the same path), which manifests as
-      # `cp: ... File exists` errors during extraction.
-      slug = Path.basename(output_dir)
-      volume = Docker.volume_name(slug)
-      extract_dir = output_dir <> ".extract"
-
-      Docker.build!(
-        br_source: br_source,
-        build_path: output_dir,
-        volume: volume,
-        extract_dir: extract_dir,
-        defconfig_text: defconfig_text,
-        br_package: br_package,
-        env: env,
-        extra_mounts: extra_mounts
-      )
-
-      # Return the dir Harvest will read — it has `per-package/<br_package>/`
-      # populated from the volume.
-      extract_dir
-    end
+    Backend.select().build!(spec)
   end
 
   @doc false
@@ -134,91 +73,5 @@ defmodule NBPR.Buildroot.Build do
   @spec build_env() :: [{String.t(), String.t()}]
   def build_env do
     [{"BR2_DL_DIR", Source.download_dir()}]
-  end
-
-  defp collect_legal_info!(output_dir, br_package, pp_dst) do
-    pattern = Path.join([output_dir, "legal-info", "licenses", "#{br_package}-*"])
-
-    with [licenses_dir | _] <- Path.wildcard(pattern) |> Enum.filter(&File.dir?/1),
-         license_files = list_files(licenses_dir),
-         [_ | _] <- license_files do
-      legal_info_dir = Path.join(pp_dst, "legal-info")
-      File.mkdir_p!(legal_info_dir)
-      out_path = Path.join(legal_info_dir, "#{br_package}.txt")
-      contents = license_files |> Enum.map(&File.read!/1) |> Enum.join("\n\n\n")
-      File.write!(out_path, contents)
-    else
-      _ -> :ok
-    end
-  end
-
-  defp list_files(dir) do
-    dir
-    |> Path.join("**")
-    |> Path.wildcard()
-    |> Enum.filter(&File.regular?/1)
-    |> Enum.sort()
-  end
-
-  defp locate_build_dir!(output_dir, br_package) do
-    pattern = Path.join([output_dir, "build", "#{br_package}-*"])
-
-    case Path.wildcard(pattern) |> Enum.filter(&File.dir?/1) do
-      [dir] ->
-        dir
-
-      [] ->
-        raise "could not locate build dir for #{br_package} under #{Path.dirname(pattern)}"
-
-      many ->
-        raise "multiple build dirs match #{pattern}: #{inspect(many)}"
-    end
-  end
-
-  # Locates the per-package STAGING_DIR. With a Nerves (external) toolchain,
-  # `STAGING_DIR` is the toolchain sysroot at `<pp>/host/<tuple>/sysroot`, not a
-  # separate `<pp>/staging` dir — that's where `.files-list-staging.txt` paths
-  # are rooted. Falls back to `<pp>/staging` for an internal toolchain.
-  defp staging_src(pp_src) do
-    case Path.wildcard(Path.join(pp_src, "host/*/sysroot")) do
-      [dir | _] -> dir
-      [] -> Path.join(pp_src, "staging")
-    end
-  end
-
-  defp ensure_linux! do
-    case :os.type() do
-      {:unix, :linux} ->
-        :ok
-
-      other ->
-        raise """
-        Buildroot build currently requires a Linux host; detected #{inspect(other)}.
-
-        macOS and other hosts will be supported via a Docker wrapper in a
-        later phase. For now, run `mix nbpr.build` on a Linux machine or
-        inside `mix nerves.system.shell` (which gives you a Linux shell
-        with BR already set up).
-        """
-    end
-  end
-
-  defp run_make!(cwd, output_dir, env, targets) do
-    args = make_args(output_dir, targets)
-    cmd = "make #{Enum.join(args, " ")}"
-    Mix.shell().info("[nbpr] running: #{cmd}")
-
-    case System.cmd("make", args,
-           cd: cwd,
-           env: env,
-           into: IO.stream(:stdio, :line),
-           stderr_to_stdout: true
-         ) do
-      {_, 0} ->
-        :ok
-
-      {_, status} ->
-        raise "Buildroot `#{cmd}` failed with exit status #{status}"
-    end
   end
 end
