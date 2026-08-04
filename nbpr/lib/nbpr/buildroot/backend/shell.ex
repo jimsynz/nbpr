@@ -76,7 +76,10 @@ defmodule NBPR.Buildroot.Backend.Shell do
   defp finalize!(target_dir, host_bin_dir, output_dir) do
     script = Finalize.script(target_dir, host_bin_dir, Path.join(output_dir, ".config"))
 
-    case System.cmd("sh", ["-c", script], stderr_to_stdout: true) do
+    # `-e` so an unexpected failure aborts rather than silently shipping an
+    # unfinalized artefact. No `pipefail`: `sh` is dash on Debian-family hosts,
+    # which doesn't have it, and the fragment guards its own pipelines.
+    case System.cmd("sh", ["-e", "-c", script], stderr_to_stdout: true) do
       {output, 0} ->
         if output != "", do: Mix.shell().info(output)
         :ok

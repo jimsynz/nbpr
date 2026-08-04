@@ -25,12 +25,20 @@ defmodule NBPR.Buildroot.FinalizeTest do
     path
   end
 
+  # Prefer dash: the shell backend invokes plain `sh`, which on Debian and
+  # Ubuntu (including CI) is dash, and it's the stricter of the two shells the
+  # fragment has to survive — the container backend runs it under bash. `-e` so
+  # an unexpected failure surfaces instead of being swallowed; deliberately no
+  # `pipefail`, which dash doesn't have and Buildroot's own recipe doesn't use.
+  defp shell do
+    System.find_executable("dash") || System.find_executable("sh") || "sh"
+  end
+
   defp run!(ctx, config_lines) do
     File.write!(ctx.config, Enum.join(config_lines, "\n") <> "\n")
     script = Finalize.script(ctx.target, ctx.host_bin, ctx.config)
 
-    {output, status} =
-      System.cmd("sh", ["-euo", "pipefail", "-c", script], stderr_to_stdout: true)
+    {output, status} = System.cmd(shell(), ["-e", "-c", script], stderr_to_stdout: true)
 
     assert status == 0, "finalize script failed:\n#{output}"
     output
@@ -256,9 +264,7 @@ defmodule NBPR.Buildroot.FinalizeTest do
       File.chmod!(bin, 0o755)
 
       script = Finalize.script(ctx.target, ctx.host_bin, Path.join(ctx.root, "absent.config"))
-
-      {output, status} =
-        System.cmd("sh", ["-euo", "pipefail", "-c", script], stderr_to_stdout: true)
+      {output, status} = System.cmd(shell(), ["-e", "-c", script], stderr_to_stdout: true)
 
       assert status == 0
       assert output =~ "BR2_STRIP_strip is not set"
