@@ -9,15 +9,39 @@ defmodule NBPR.Buildroot.Defconfig do
   2. `BR2_PER_PACKAGE_DIRECTORIES=y` so per-package builds don't contend.
   3. `BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y` so packages overlapping busybox
      applets (e.g. kmod's tools) aren't dropped as unmet dependencies.
-  4. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
-  5. One line per resolved `build_opt` whose schema declared a `:br_flag`
+  4. `BR2_PRIMARY_SITE` pointing at Buildroot's source archive — see below.
+  5. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
+  6. One line per resolved `build_opt` whose schema declared a `:br_flag`
      extension, formatted as `<br_flag>=<value>` with BR-style boolean,
      string, and integer encoding.
 
   The result is a defconfig file ready to be loaded with `make defconfig`
   — but typically we'd write it to `O=<dir>/.config` directly and follow
   with `make olddefconfig` to resolve any dependencies.
+
+  ## Why the primary site is set
+
+  `BR2_BACKUP_SITE` defaults to Buildroot's own source archive, which mirrors
+  every tarball mainline Buildroot references. Nerves systems override it to
+  `https://dl.nerves-project.org`, which only carries what a Nerves system
+  itself builds — reasonable for them, useless here, because nbpr's whole
+  purpose is building packages Nerves systems *don't* include.
+
+  Left alone, an nbpr build's only real source is the package's own upstream
+  site, and some of those are unreliable: gpsd's is a Savannah mirror over
+  plain HTTP, which times out often enough from CI runners to fail roughly half
+  a nine-target matrix, with `dl.nerves-project.org` then returning 403.
+
+  Setting `BR2_PRIMARY_SITE` to the archive fixes that without touching the
+  system's backup choice. Buildroot tries the primary site *first* and falls
+  back to the package's own site, so downloads get faster and more reliable at
+  the same time, and upstreams see less traffic — which is what Buildroot
+  recommends the option for.
   """
+
+  # Buildroot's own source archive: every tarball mainline BR references,
+  # under `<pkg>/<filename>`.
+  @primary_site "https://sources.buildroot.net"
 
   @doc """
   Returns the defconfig text for the given inputs as a binary.
@@ -38,6 +62,7 @@ defmodule NBPR.Buildroot.Defconfig do
       "# === nbpr additions ===",
       "BR2_PER_PACKAGE_DIRECTORIES=y",
       "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y",
+      ~s(BR2_PRIMARY_SITE="#{@primary_site}"),
       "BR2_PACKAGE_#{br_symbol(package.br_package)}=y"
     ]
 

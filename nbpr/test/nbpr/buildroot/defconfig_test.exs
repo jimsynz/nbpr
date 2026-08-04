@@ -63,6 +63,38 @@ defmodule NBPR.Buildroot.DefconfigTest do
       assert String.ends_with?(out, "\n")
     end
 
+    # Nerves systems point BR2_BACKUP_SITE at their own mirror, which only
+    # carries what a Nerves system builds — so without a primary site an nbpr
+    # build's only real source is the package's own upstream, and gpsd's
+    # (a Savannah mirror over plain HTTP) times out often enough from CI to
+    # fail half a nine-target matrix.
+    test "points the primary download site at Buildroot's source archive", %{tmp: tmp} do
+      sys_defconfig = Path.join(tmp, "nerves_defconfig")
+      File.write!(sys_defconfig, ~s(BR2_arm=y\nBR2_BACKUP_SITE="https://dl.nerves-project.org"\n))
+
+      package = %NBPR.Package{
+        name: :gpsd,
+        version: 1,
+        module: NBPR.Gpsd,
+        description: "x",
+        br_package: "gpsd",
+        build_opts: [],
+        build_opt_extensions: %{},
+        daemons: [],
+        kernel_modules: [],
+        artifact_sites: []
+      }
+
+      out = Defconfig.render!(package, sys_defconfig, [])
+
+      assert out =~ ~s(BR2_PRIMARY_SITE="https://sources.buildroot.net")
+
+      # The system's own backup choice is left intact — this adds a source
+      # ahead of upstream rather than replacing the fallback behind it.
+      assert out =~ ~s(BR2_BACKUP_SITE="https://dl.nerves-project.org")
+      refute out =~ "BR2_PRIMARY_SITE_ONLY"
+    end
+
     test "emits one BR config line per resolved build_opt with a :br_flag", %{tmp: tmp} do
       sys_defconfig = Path.join(tmp, "nerves_defconfig")
       File.write!(sys_defconfig, "BR2_arm=y\n")

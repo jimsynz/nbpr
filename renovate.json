@@ -21,7 +21,7 @@
   ],
   "customDatasources": {
     "buildroot-package": {
-      "description": "Reads `package/<pkg>/<pkg>.mk` from buildroot/buildroot at the BR_REF pinned in the URL below, base64-decodes the file, and extracts the first `<PKG>_VERSION = <semver>` line. BR_REF is itself tracked by the `nerves-system-br-buildroot-version` datasource — Renovate updates this URL automatically when nerves_system_br/main bumps its NERVES_BR_VERSION pin.",
+      "description": "Reads `package/<pkg>/<pkg>.mk` from buildroot/buildroot at the BR_REF pinned in the URL below, base64-decodes the file, and extracts the first `<PKG>_VERSION = <semver>` line. BR_REF is itself tracked by the `nerves-system-br-buildroot-version` datasource — Renovate updates this URL automatically when nerves_system_br/main bumps its NERVES_BR_VERSION pin. Only works where `<PKG>_VERSION` is a literal: packages Buildroot builds from a dated snapshot compute it from other variables (ncurses, for instance, is `$(NCURSES_VERSION_MAJOR)-$(NCURSES_SNAPSHOT_DATE)`), which no regex over the `.mk` can resolve. Such a package needs its own datasource reading whichever variable actually holds the version.",
       "defaultRegistryUrlTemplate": "https://api.github.com/repos/buildroot/buildroot/contents/package/{{packageName}}/{{packageName}}.mk?ref=2026.05.1",
       "format": "json",
       "transformTemplates": [
@@ -90,6 +90,62 @@
       ],
       "depNameTemplate": "kmod",
       "packageNameTemplate": "kmod",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_gpsd @version → Buildroot's `GPSD_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_gpsd/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "gpsd",
+      "packageNameTemplate": "gpsd",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_chrony @version → Buildroot's `CHRONY_VERSION` line at the pinned BR_REF. Buildroot ships two-component versions here (e.g. `4.8`); the package's `normalise_version/1` pads `@version` to Hex's three-component shape at load time.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_chrony/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "chrony",
+      "packageNameTemplate": "chrony",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libcap @version → Buildroot's `LIBCAP_VERSION` line at the pinned BR_REF. Buildroot ships two-component versions here (e.g. `2.78`); the package's `normalise_version/1` pads `@version` to Hex's three-component shape at load time.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libcap/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libcap",
+      "packageNameTemplate": "libcap",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_pps_tools @version → Buildroot's `PPS_TOOLS_VERSION` line at the pinned BR_REF. The Hex name underscores what Buildroot hyphenates, so packageName has to be the Buildroot spelling for the registry URL to resolve.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_pps_tools/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "pps-tools",
+      "packageNameTemplate": "pps-tools",
       "datasourceTemplate": "custom.buildroot-package",
       "versioningTemplate": "semver-coerced"
     },
