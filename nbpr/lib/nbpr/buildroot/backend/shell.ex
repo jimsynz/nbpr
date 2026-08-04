@@ -15,7 +15,7 @@ defmodule NBPR.Buildroot.Backend.Shell do
 
   @behaviour NBPR.Buildroot.Backend
 
-  alias NBPR.Buildroot.{Build, FilesList}
+  alias NBPR.Buildroot.{Build, FilesList, Finalize}
 
   @impl true
   def available?, do: in_canonical_env?()
@@ -63,9 +63,30 @@ defmodule NBPR.Buildroot.Backend.Shell do
       keep_dev: true
     )
 
+    finalize!(Path.join(pp_dst, "target"), Path.join(pp_src, "host/bin"), output_dir)
+
     collect_legal_info!(output_dir, spec.br_package, pp_dst)
 
     extract_dir
+  end
+
+  # Buildroot's `target-finalize` never runs on this path (see
+  # NBPR.Buildroot.Finalize), so apply its cleanup and stripping to the
+  # harvested target tree here.
+  defp finalize!(target_dir, host_bin_dir, output_dir) do
+    script = Finalize.script(target_dir, host_bin_dir, Path.join(output_dir, ".config"))
+
+    # `-e` so an unexpected failure aborts rather than silently shipping an
+    # unfinalized artefact. No `pipefail`: `sh` is dash on Debian-family hosts,
+    # which doesn't have it, and the fragment guards its own pipelines.
+    case System.cmd("sh", ["-e", "-c", script], stderr_to_stdout: true) do
+      {output, 0} ->
+        if output != "", do: Mix.shell().info(output)
+        :ok
+
+      {output, status} ->
+        raise "Buildroot target-finalize equivalent failed (exit #{status}): #{output}"
+    end
   end
 
   @doc """
