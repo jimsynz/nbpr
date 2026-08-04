@@ -1,7 +1,7 @@
 defmodule Nbpr.Libcap.MixProject do
   use Mix.Project
 
-  @version "2.78.0"
+  @version "2.78"
 
   def project do
     [

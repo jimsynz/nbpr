@@ -123,6 +123,20 @@
     },
     {
       "customType": "regex",
+      "description": "nbpr_libcap @version → Buildroot's `LIBCAP_VERSION` line at the pinned BR_REF. Buildroot ships two-component versions here (e.g. `2.78`); the package's `normalise_version/1` pads `@version` to Hex's three-component shape at load time.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libcap/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libcap",
+      "packageNameTemplate": "libcap",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "nbpr_pps_tools @version → Buildroot's `PPS_TOOLS_VERSION` line at the pinned BR_REF. The Hex name underscores what Buildroot hyphenates, so packageName has to be the Buildroot spelling for the registry URL to resolve.",
       "managerFilePatterns": [
         "/^packages/nbpr_pps_tools/mix\\.exs$/"
