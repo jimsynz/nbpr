@@ -29,15 +29,23 @@ defmodule NBPR.Chrony do
   `:nbpr_gpsd` writes its time samples into two SHM segments, which chrony
   reads as reference clocks:
 
-      refclock SHM 0 refid NMEA offset 0.000 precision 1e-1
-      refclock SHM 1 refid PPS precision 1e-7 prefer
+      refclock SHM 0 refid GPS precision 1e-1 offset 0.9999 delay 0.2
+      refclock SHM 1 refid PPS precision 1e-7
 
-  SHM 0 is the NMEA sentence time — good to a few tens of milliseconds, since
-  it's whenever the sentence finished arriving. SHM 1 is the PPS edge, which
-  is where the microseconds come from; it needs gpsd built with `pps: true`,
-  a `CONFIG_PPS` kernel, and a wired PPS line. See `NBPR.PpsTools` for the
-  kernel side. Run gpsd with `nowait: true` (the default) or the samples stop
-  whenever no client is connected.
+  SHM 0 is the NMEA sentence time — only good to a few tens of milliseconds,
+  since it's timestamped whenever the sentence finished arriving. The
+  `offset` compensates for that latency and is specific to your receiver and
+  baud rate; `0.9999` is upstream's placeholder, deliberately too large to
+  leave in production. Measure yours against a known-good source.
+
+  SHM 1 is the PPS edge, and where the microseconds come from. The explicit
+  `precision` matters — chronyd doesn't read it out of the SHM structure, so
+  without it the PPS samples get weighted as though they were no better than
+  the NMEA ones. It needs gpsd built with `pps: true`, a `CONFIG_PPS` kernel,
+  and a wired PPS line; see `NBPR.PpsTools` for the kernel side.
+
+  Run gpsd with `nowait: true` (the default) or the samples stop whenever no
+  client is connected.
 
   ## Dependencies
 
