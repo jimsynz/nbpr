@@ -49,11 +49,16 @@ defmodule NBPR.Chrony do
 
   ## Dependencies
 
-  Buildroot's chrony `select`s libcap, so `chronyd` links `libcap.so.2`.
-  Nothing in a stock Nerves system provides it and an nbpr artefact only
-  carries its own files-list, so `mix firmware`'s shared-library check will
-  flag it unless libcap is available — see this package's README for the
-  current state of that.
+  Buildroot's chrony `select`s libcap unconditionally, so `chronyd` always
+  links `libcap.so.2` — which no stock Nerves system provides. Hence the
+  `:nbpr_libcap` dependency.
+
+  `chronyd` also links `libgnutls.so.30` and `libnettle.so.8` on systems that
+  carry them, which is what gets you NTS (authenticated NTP). Those are
+  conditional in Buildroot (`ifeq ($(BR2_PACKAGE_GNUTLS),y)`), so chrony links
+  them only where the base system already provides them and they always
+  resolve — no nbpr package needed, but it does mean NTS support is inherited
+  from the system rather than chosen here. The Raspberry Pi systems have both.
   """
 
   use NBPR.BrPackage,

@@ -7,18 +7,24 @@ defmodule NBPR.Ncurses do
   under this package's priv dir; `NBPR.Application` prepends it to
   `LD_LIBRARY_PATH` at boot so sibling packages resolve the sonames.
 
-  ## You probably only need this on a non-RPi target
+  ## Nothing currently needs this
 
-  Every Raspberry Pi Nerves system already carries ncurses, because its
-  `nerves_defconfig` enables `alsa-utils`, whose Kconfig `select`s ncurses.
-  So on `rpi0`/`rpi0_2`/`rpi3`/`rpi3a`/`rpi4`/`rpi5` an ncurses-linking
-  package resolves its soname against the base system's staging and this
-  package adds nothing.
+  Every Nerves system in the prebuild matrix already ships
+  `libncurses.so.6` in its staging — checked directly against the built
+  artefacts for `rpi0`, `rpi4`, `rpi5`, `bbb`, `x86_64` and `qemu_aarch64` at
+  their pinned versions. So an ncurses-linking package resolves against the
+  base system and this one adds nothing today.
 
-  On `bbb`, `x86_64` and `qemu_aarch64` nothing pulls ncurses in, so a
-  package that wants it — `:nbpr_gpsd` with `ncurses: true`, for its `cgps`
-  and `gpsmon` clients — needs this one in the firmware too. An nbpr artefact
-  only carries its own Buildroot files-list, not its dependencies'.
+  It exists because that isn't a stable guarantee: `nerves_system_rpi4` 2.0.0
+  had no ncurses and 2.1.0 does, so it can move the other way too. Nothing in
+  a system's `nerves_defconfig` tells you either way — ncurses arrives through
+  transitive Kconfig `select`s, so the built system's staging dir is the only
+  honest source. If a system version drops it, the package that needs it can
+  depend on this one and `NBPR.Artifact.LibCheck` will say so at firmware time
+  rather than the device failing to start a binary.
+
+  Don't add it speculatively — an nbpr artefact carries only its own Buildroot
+  files-list, so this ships a second copy of a library the base already has.
 
   ## Terminfo
 

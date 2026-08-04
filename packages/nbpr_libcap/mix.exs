@@ -1,23 +1,23 @@
-defmodule Nbpr.Chrony.MixProject do
+defmodule Nbpr.Libcap.MixProject do
   use Mix.Project
 
-  @version "4.8"
+  @version "2.78.0"
 
   def project do
     [
-      app: :nbpr_chrony,
+      app: :nbpr_libcap,
       version: normalise_version(@version),
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description:
-        "NTP client and server (`chrony`) that can discipline the clock from a local GPS reference, packaged for Nerves",
+        "This library implements the user-space interfaces to the POSIX 1003.1e capabilities available in Linux kernels.",
       package: [
         organization: "nbpr",
-        licenses: ["GPL-2.0-only"],
+        licenses: ["GPL-2.0-only", "BSD-3-Clause"],
         links: %{
           "GitHub" => "https://github.com/jimsynz/nbpr",
-          "chrony" => "https://chrony-project.org/"
+          "libcap" => "https://sites.google.com/site/fullycapable/"
         }
       ]
     ]
@@ -29,8 +29,7 @@ defmodule Nbpr.Chrony.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2"),
-      nbpr_dep(:nbpr_libcap, "~> 2.78")
+      nbpr_dep(:nbpr, "~> 0.2")
     ]
   end
 

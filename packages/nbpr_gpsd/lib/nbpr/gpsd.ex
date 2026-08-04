@@ -51,12 +51,11 @@ defmodule NBPR.Gpsd do
   devices over the daemon's control socket, installs alongside the daemon in
   `/usr/sbin/`.
 
-  The interactive `cgps` and `gpsmon` need curses. On every Raspberry Pi
-  system you get them for free, because the system's `nerves_defconfig`
-  enables `alsa-utils`, whose Kconfig `select`s ncurses — and a `select` wins
-  over `ncurses: false`, so there's no turning them off there either. On
-  `bbb`, `x86_64` and `qemu_aarch64` nothing pulls ncurses in, so set
-  `ncurses: true` and add `:nbpr_ncurses` for the library.
+  The interactive `cgps` and `gpsmon` need curses, and you get them for free
+  on every system in the prebuild matrix — all of them already have ncurses
+  enabled, so gpsd builds those clients and links the base system's
+  `libncurses.so.6`. That also means `ncurses: false` can't take them away: a
+  Kconfig `select` beats an explicit `=n`.
 
   ## Not exposed, and why
 
@@ -104,7 +103,7 @@ defmodule NBPR.Gpsd do
         default: false,
         br_flag: "BR2_PACKAGE_NCURSES",
         doc:
-          "Build the curses clients `cgps` and `gpsmon`, and add `:nbpr_ncurses` to your deps for the library — this only sets Buildroot's ncurses symbol. Needed on `bbb`, `x86_64` and `qemu_aarch64`; a no-op on the Raspberry Pi systems, where `alsa-utils` already `select`s ncurses and those clients build either way."
+          "Build the curses clients `cgps` and `gpsmon`. Currently a no-op — every system in the prebuild matrix already enables ncurses, so those clients build regardless and link the base system's library. Here so the clients stay guaranteed if a future system version drops it, in which case pair it with `:nbpr_ncurses`."
       ],
       pps: [
         type: :boolean,

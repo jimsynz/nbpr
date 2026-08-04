@@ -36,18 +36,27 @@ guide](https://hexdocs.pm/nbpr/getting-started.html). The fastest
 path to a working setup is `mix igniter.install nbpr`.
 
 
-## You probably only need this on a non-RPi target
+## Nothing currently needs this
 
-Every Raspberry Pi Nerves system already carries ncurses: its
-`nerves_defconfig` enables `alsa-utils`, whose Kconfig `select`s ncurses.
-So on `rpi0`, `rpi0_2`, `rpi3`, `rpi3a`, `rpi4` and `rpi5` an
-ncurses-linking package resolves its soname against the base system's
-staging and this package adds nothing.
+Every Nerves system in the prebuild matrix already ships `libncurses.so.6`
+in its staging. Checked directly against the built system artefacts at their
+pinned versions:
 
-On `bbb`, `x86_64` and `qemu_aarch64` nothing pulls ncurses in. There, a
-package that wants it — `:nbpr_gpsd` with `ncurses: true`, for its `cgps`
-and `gpsmon` clients — needs this one in the firmware too, since an nbpr
-artefact only carries its own Buildroot files-list, not its dependencies'.
+| System | `libncurses.so.6` |
+|---|---|
+| `rpi0` 2.1.0, `rpi4` 2.1.0, `rpi5` 2.1.0 | provided |
+| `bbb` 2.30.0, `x86_64` 1.34.0, `qemu_aarch64` 0.4.0 | provided |
+
+So an ncurses-linking package resolves against the base system, and adding
+this one just ships a second copy.
+
+It exists because that isn't a stable guarantee — `nerves_system_rpi4` 2.0.0
+had no ncurses and 2.1.0 does, so it can move the other way too. And nothing
+in a system's `nerves_defconfig` tells you which: ncurses arrives via
+transitive Kconfig `select`s, so the built system's staging dir is the only
+honest source. If some system version drops it, the package that needs it
+grows a dependency on this one, and `mix firmware`'s library check names the
+missing soname instead of the device failing to start a binary.
 
 
 ## Terminfo

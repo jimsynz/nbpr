@@ -73,12 +73,17 @@ Run gpsd with `nowait: true` (the default) or the samples stop whenever no
 client is connected.
 
 
-## Known gap: libcap
+## Dependencies
 
-Buildroot's chrony `select`s libcap, so `chronyd` links `libcap.so.2`.
-Nothing in a stock Nerves system provides that soname, and an nbpr
-artefact only carries its own Buildroot files-list — so `mix firmware`'s
-shared-library check will report `libcap.so.2` as unresolved. There is no
-`:nbpr_libcap` package yet; adding one is the fix.
+Buildroot's chrony `select`s libcap unconditionally, so `chronyd` always
+links `libcap.so.2` — which no stock Nerves system provides. That's what
+`:nbpr_libcap` is for, and it comes in automatically as a dependency.
+
+`chronyd` also links `libgnutls.so.30` and `libnettle.so.8` on systems that
+carry them, which is what gets you NTS (authenticated NTP). Those are
+conditional in Buildroot, so chrony links them only where the base system
+already provides them and they always resolve — but it does mean NTS support
+is inherited from the system rather than chosen here. The Raspberry Pi
+systems have both; `bbb`, `x86_64` and `qemu_aarch64` don't.
 
 Source: <https://github.com/jimsynz/nbpr>.
