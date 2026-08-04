@@ -51,16 +51,18 @@ defmodule NBPR.Gpsd do
   devices over the daemon's control socket, installs alongside the daemon in
   `/usr/sbin/`.
 
-  The interactive `cgps` and `gpsmon` need curses, and you get them for free
-  on every system in the prebuild matrix — all of them already have ncurses
-  enabled, so gpsd builds those clients and links the base system's
-  `libncurses.so.6`. That also means `ncurses: false` can't take them away: a
-  Kconfig `select` beats an explicit `=n`.
+  The interactive `cgps` and `gpsmon` come too. Buildroot builds them when
+  ncurses is enabled, which every Nerves system in the prebuild matrix already
+  does — verified against the built system artefacts, all of which carry
+  `libncurses.so.6` in staging, so the clients link the base system's copy.
 
   ## Not exposed, and why
 
     * **Python support** (`BR2_PACKAGE_GPSD_PYTHON`) — as above; would need an
       `:nbpr_python3` package to be useful.
+    * **`BR2_PACKAGE_NCURSES`** — every system already enables it, and a
+      Kconfig `select` beats an explicit `=n`, so an option here could neither
+      add nor remove the curses clients.
     * **Privilege revocation** (`BR2_PACKAGE_GPSD_USER`/`_GROUP`) — Nerves runs
       the BEAM as root and dropping to `nobody` costs gpsd its device access.
     * **`BR2_PACKAGE_GPSD_DEVICES`** — only ever substituted into Buildroot's
@@ -97,13 +99,6 @@ defmodule NBPR.Gpsd do
         default: false,
         br_flag: "BR2_PACKAGE_GPSD_CLIENT_DEBUG",
         doc: "Compile debug-level tracing into the client library."
-      ],
-      ncurses: [
-        type: :boolean,
-        default: false,
-        br_flag: "BR2_PACKAGE_NCURSES",
-        doc:
-          "Build the curses clients `cgps` and `gpsmon`. Currently a no-op — every system in the prebuild matrix already enables ncurses, so those clients build regardless and link the base system's library. Here so the clients stay guaranteed if a future system version drops it, in which case pair it with `:nbpr_ncurses`."
       ],
       pps: [
         type: :boolean,

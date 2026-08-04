@@ -1,5 +1,0 @@
-_build/
-deps/
-*.beam
-erl_crash.dump
-.elixir_ls/

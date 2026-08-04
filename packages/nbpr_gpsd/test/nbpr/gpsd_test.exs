@@ -53,10 +53,9 @@ defmodule NBPR.GpsdTest do
       assert "BR2_PACKAGE_GPSD_NMEA2000" in gpsd_flags
     end
 
-    test "ncurses and pps set sibling packages' Buildroot flags" do
+    test "pps sets a sibling package's Buildroot flag" do
       extensions = NBPR.Gpsd.__nbpr_package__().build_opt_extensions
 
-      assert extensions[:ncurses].br_flag == "BR2_PACKAGE_NCURSES"
       assert extensions[:pps].br_flag == "BR2_PACKAGE_PPS_TOOLS"
     end
 
@@ -66,7 +65,7 @@ defmodule NBPR.GpsdTest do
       {enabled, disabled} = Enum.split_with(validated, fn {_name, value} -> value end)
 
       assert Keyword.keys(enabled) == [:clients]
-      assert length(disabled) == 26
+      assert length(disabled) == 25
     end
   end
 

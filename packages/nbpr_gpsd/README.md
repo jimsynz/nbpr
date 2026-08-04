@@ -82,11 +82,10 @@ With `clients: true` (the default), under `/usr/bin/`: `gpsctl`,
 devices over the daemon's control socket, installs alongside the daemon in
 `/usr/sbin/`.
 
-The interactive `cgps` and `gpsmon` need curses, and you get them for free
-on every system in the prebuild matrix — all of them already have ncurses
-enabled, so gpsd builds those clients and links the base system's
-`libncurses.so.6`. That also means `ncurses: false` can't take them away: a
-Kconfig `select` beats an explicit `=n`.
+The interactive `cgps` and `gpsmon` come too. Buildroot builds them when
+ncurses is enabled, which every Nerves system in the prebuild matrix already
+does — verified against the built system artefacts, all of which carry
+`libncurses.so.6` in staging, so the clients link the base system's copy.
 
 
 ## Companion packages
@@ -96,7 +95,5 @@ Kconfig `select` beats an explicit `=n`.
   Needs a `CONFIG_PPS` kernel.
 - `:nbpr_chrony` — discipline the system clock from this receiver via
   chrony's SHM refclock.
-- `:nbpr_ncurses` — not needed today; every system already provides
-  `libncurses.so.6`. See that package's README.
 
 Source: <https://github.com/jimsynz/nbpr>.
