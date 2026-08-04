@@ -234,6 +234,8 @@ defmodule NBPR.Buildroot.Backend.Container do
       rmdir "#{pp_dst}/staging"
     fi
 
+    #{NBPR.Buildroot.Finalize.script("#{pp_dst}/target", "#{pp_src}/host/bin", "#{build_path}/.config")}
+
     # Concatenate upstream licence files into a single `legal-info/<pkg>.txt`,
     # matching the canonical artefact layout. Empty / missing licences-dir is
     # not fatal (some packages don't declare `FOO_LICENSE_FILES`).
