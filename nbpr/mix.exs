@@ -40,7 +40,7 @@ defmodule NBPR.MixProject do
   defp deps do
     [
       {:nimble_options, "~> 1.1"},
-      {:muontrap, "~> 1.0"},
+      {:muontrap, "~> 2.0"},
       # Optional — only required when a consumer runs `mix igniter.install
       # nbpr` to bootstrap their project. Listed here so `Mix.Tasks.Nbpr.Install`
       # compiles in this library's own build.
