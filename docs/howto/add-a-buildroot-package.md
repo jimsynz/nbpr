@@ -27,8 +27,17 @@ Open `deps/nerves_system_br/` after `mix deps.get` and check
     ls deps/nerves_system_br/package/<name>/
 
 You should see at minimum a `<name>.mk` and a `Config.in`. If the
-directory doesn't exist, the package isn't in mainline — stop here and
-follow the vendored-package guide instead.
+directory doesn't exist, look one level deeper before concluding the
+package isn't in mainline:
+
+    ls -d deps/nerves_system_br/package/*/<name>/
+
+Some packages live under a parent directory — `fftw-single` under
+`fftw`, every `xlib_*` under `x11r7`, the `qt5*` and `gst1-*` families.
+Those are still mainline packages and NBPR builds them, but the
+generator can't look their metadata up; see step 3. If neither path
+exists, the package isn't in mainline — stop here and follow the
+vendored-package guide instead.
 
 ## 2. Resolve deps for a target
 
@@ -184,6 +193,19 @@ Once your PR lands on `main`:
 You don't tag or publish manually.
 
 ## Common gotchas
+
+- **Packages nested under a parent directory** (`package/fftw/fftw-single/`)
+  can't be scaffolded by lookup — the generator reads `package/<name>/`
+  and will tell you there's no such Buildroot package. Scaffold with
+  `mix nbpr.new <name> --no-lookup --br-package <br-name>` and fill in
+  the version, licences, homepage and description by hand from the
+  package's `.mk` and `Config.in`. Note that a nested `.mk` often
+  defines its version as a reference to the parent's
+  (`FFTW_SINGLE_VERSION = $(FFTW_VERSION)`), so the literal you want is
+  usually in the parent's `.mk` — and that's the file Renovate has to
+  track too. The build side needs nothing extra: the kconfig symbols
+  gating a nested package are derived from the Buildroot tree at
+  defconfig-render time. `:nbpr_fftw_single` is the worked example.
 
 - **`host-*` dependencies** are build-host-only. The generator filters
   them out automatically; you shouldn't see them in your generated
