@@ -84,6 +84,6 @@ carry them, which is what gets you NTS (authenticated NTP). Those are
 conditional in Buildroot, so chrony links them only where the base system
 already provides them and they always resolve — but it does mean NTS support
 is inherited from the system rather than chosen here. The Raspberry Pi
-systems have both; `bbb`, `x86_64` and `qemu_aarch64` don't.
+systems have both; `bbb`, `trellis`, `x86_64` and `qemu_aarch64` don't.
 
 Source: <https://github.com/jimsynz/nbpr>.

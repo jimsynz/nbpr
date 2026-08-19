@@ -32,6 +32,7 @@ defmodule NBPR.Workspace.MixProject do
     rpi4: {"nerves-project/nerves_system_rpi4", "2.1.1"},
     rpi5: {"nerves-project/nerves_system_rpi5", "2.1.1"},
     bbb: {"nerves-project/nerves_system_bbb", "2.30.1"},
+    trellis: {"nerves-project/nerves_system_trellis", "0.4.2"},
     x86_64: {"nerves-project/nerves_system_x86_64", "1.34.1"},
     qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.4.1"}
   }
