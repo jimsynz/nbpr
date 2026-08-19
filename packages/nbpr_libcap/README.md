@@ -34,8 +34,8 @@ package that links it.
 
 No Nerves system ships libcap. Checked against the built system artefacts at
 their pinned versions — `rpi0` 2.1.0, `rpi4` 2.1.0, `rpi5` 2.1.0, `bbb`
-2.30.0, `x86_64` 1.34.0 and `qemu_aarch64` 0.4.0 — none has
-`libcap.so.2` in staging.
+2.30.0, `trellis` 0.4.2, `x86_64` 1.34.0 and `qemu_aarch64` 0.4.0 — none
+has `libcap.so.2` in staging.
 
 Buildroot's chrony `select`s libcap unconditionally, so `chronyd` always
 links it, and an nbpr artefact only carries its own Buildroot files-list.
