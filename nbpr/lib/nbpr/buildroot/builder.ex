@@ -48,7 +48,7 @@ defmodule NBPR.Buildroot.Builder do
     {:ok, br_version} = Buildroot.br_version(nerves_system_br_path)
 
     output_dir_br = stable_output_dir(inputs.system_app, br_version)
-    defconfig_text = render_defconfig!(pkg, system_source_path, inputs.build_opts)
+    defconfig_text = render_defconfig!(pkg, system_source_path, br_source, inputs.build_opts)
 
     extra_env = [
       {"NERVES_DEFCONFIG_DIR", system_source_path},
@@ -91,14 +91,14 @@ defmodule NBPR.Buildroot.Builder do
     end
   end
 
-  defp render_defconfig!(pkg, system_source_path, build_opts) do
+  defp render_defconfig!(pkg, system_source_path, br_source, build_opts) do
     sys_defconfig = Path.join(system_source_path, "nerves_defconfig")
 
     unless File.regular?(sys_defconfig) do
       Mix.raise("system defconfig not found at #{sys_defconfig}")
     end
 
-    Defconfig.render!(pkg, sys_defconfig, build_opts)
+    Defconfig.render!(pkg, sys_defconfig, br_source, build_opts)
   end
 
   defp ensure_br_source! do
