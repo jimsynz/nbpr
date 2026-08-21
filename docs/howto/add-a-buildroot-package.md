@@ -230,3 +230,18 @@ You don't tag or publish manually.
   to underscored module names (`NBPR.KernelModules`) and underscored
   Hex package names (`nbpr_kernel_modules`). The generator handles the
   mapping; pass the BR-style hyphenated name to `mix nbpr.new`.
+
+- **Packages that load files from a path fixed at build time** won't find
+  them. nbpr installs a package's `target/` files under its own `priv/`,
+  and only `PATH`, `LD_LIBRARY_PATH` and declared `runtime_env` are
+  rewritten to match — anything that `dlopen`s or `opendir`s a compiled-in
+  absolute path is looking at a rootfs location nbpr never populated.
+  Check the upstream `.mk` for a `--with-*-dir` or `libdir`-derived path
+  before assuming a package works. Where the path is configurable at
+  runtime, `runtime_env:` covers it (`:nbpr_iptables` redirects
+  `XTABLES_LIBDIR` into its priv dir that way). Where it isn't,
+  `:nbpr_libao` is the worked example of the limitation: its output plugins
+  live under `/usr/lib/ao/plugins-4` with no override, so only libao's
+  built-in drivers work. Fixing that case needs the plugin directory
+  installed at its rootfs path via the `rootfs/` artefact slice, which
+  `NBPR.Pack` carries but the Buildroot harvest step doesn't populate yet.
