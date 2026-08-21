@@ -20,6 +20,14 @@ on:
         required: false
         type: string
 
+# A run here is up to one Buildroot build per (package, target), so a
+# superseded commit is expensive to leave running. Pushes to a branch cancel
+# their predecessor; `main` doesn't, because that's where artefacts get
+# published to GHCR and a half-finished publish is worse than a wasted run.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   generate-matrix:
     runs-on: ubuntu-latest
