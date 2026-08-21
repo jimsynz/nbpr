@@ -2,11 +2,41 @@ defmodule Mix.Tasks.Nbpr.Matrix do
   @shortdoc "Emit the (package × target × system_version) prebuild matrix"
 
   @moduledoc """
-  Generates the prebuild matrix for CI: every combination of an `nbpr_*`
-  package under `packages/` with a target system declared in the workspace
-  `mix.exs` `@prebuild_systems` map.
+  Generates the prebuild matrix for CI: combinations of an `nbpr_*` package
+  under `packages/` with a target system declared in the workspace `mix.exs`
+  `@prebuild_systems` map.
 
-      mix nbpr.matrix [--json] [--root <path>]
+      mix nbpr.matrix [--json] [--changed-since <ref>] [--root <path>]
+
+  ## Scoping by change
+
+  The full cross-product outgrows GitHub Actions' 256-configuration limit
+  per job — at ten targets that ceiling arrives at 26 packages — and
+  rebuilding an artefact whose cache key hasn't moved achieves nothing
+  anyway, since `mix nbpr.publish` treats a published tarball as immutable
+  and short-circuits.
+
+  So CI passes `--changed-since <ref>` and gets only the work the diff
+  implies:
+
+    * a `packages/nbpr_<name>/` file changed — that package, every target.
+      Its version or metadata moved, so every target's artefact is stale.
+    * a `@prebuild_systems` pin in the workspace `mix.exs` changed — every
+      package, but only the targets whose version moved. The system version
+      is part of the cache key, so a bump invalidates that target's
+      artefacts across the board and leaves every other target alone.
+    * anything else that can change how a build runs — the `:nbpr` library
+      itself, this workflow — every package against `--default-target`
+      only. A library change doesn't invalidate a cache key, so this is
+      smoke coverage rather than a rebuild: broad across packages, one
+      target deep.
+
+  Entries are deduplicated, so a package that qualifies twice is built
+  once per target.
+
+  Without `--changed-since` the full cross-product is emitted, which is
+  what `workflow_dispatch` wants for a deliberate from-scratch rebuild.
+  Narrow it with `--target` or `--package` to stay under the cap.
 
   ## Output
 
@@ -30,37 +60,73 @@ defmodule Mix.Tasks.Nbpr.Matrix do
           steps:
             - run: MIX_TARGET=${{ matrix.target }} mix nbpr.build ${{ matrix.module }} -o out/
 
+  An empty matrix is a legitimate result — a docs-only diff builds nothing.
+  `{"include": []}` makes GitHub skip the job, so gate it on `--count`
+  instead if the distinction matters to the workflow.
+
   ## Flags
 
     * `--json` — emit `{"include": [...]}` JSON suitable for GHA dynamic matrix
+    * `--count` — emit just the number of entries, for a workflow that needs
+      to know whether there's work before defining a job
+    * `--changed-since <ref>` — scope to the work implied by
+      `git diff <ref>...HEAD`, per the rules above
+    * `--default-target <target>` — the target used for smoke coverage of
+      library and workflow changes (defaults to `rpi4`)
+    * `--target <target>` — restrict to one target
+    * `--package <name>` — restrict to one package, with or without the
+      `nbpr_` prefix
+    * `--max <n>` — refuse to emit more than `n` entries (defaults to 256,
+      GitHub's per-job cap). `0` disables the check. Failing here is the
+      point: an oversized matrix makes GitHub fail the run at
+      strategy-evaluation time, which produces no failing *check* and so
+      doesn't block a merge.
     * `--root <path>` — workspace root (defaults to current directory). Useful
       when running this task from a script that doesn't `cd` first.
   """
 
   use Mix.Task
 
-  @switches [json: :boolean, root: :string]
+  # GitHub Actions refuses to expand a matrix beyond this many
+  # configurations, and does it as a run-level error with no job attached —
+  # invisible to branch protection. Better to fail here, in a job that
+  # reports.
+  @gha_matrix_limit 256
+
+  @default_target "rpi4"
+
+  # Matches the workspace `mix.exs` `@prebuild_systems` entries. Deliberately
+  # the same shape Renovate's custom manager matches, so the two agree on
+  # what a pin looks like.
+  @system_pin_regex ~r/\{"nerves-project\/nerves_system_([A-Za-z0-9_]+)",\s*"([0-9]+(?:\.[0-9]+){1,2})"\}/
+
+  @switches [
+    json: :boolean,
+    count: :boolean,
+    changed_since: :string,
+    default_target: :string,
+    target: :string,
+    package: :string,
+    max: :integer,
+    root: :string
+  ]
 
   @impl Mix.Task
   def run(args) do
     {opts, _, _} = OptionParser.parse(args, switches: @switches)
 
     root = opts[:root] || File.cwd!()
-    entries = build_entries!(root)
+    entries = root |> build_entries!(opts) |> enforce_limit!(opts)
 
-    if opts[:json] do
-      Mix.shell().info(:json.encode(%{include: entries}) |> IO.iodata_to_binary())
-    else
-      Enum.each(entries, fn e ->
-        Mix.shell().info(
-          "#{e.package}\tmodule=#{e.module}\ttarget=#{e.target}\tsystem_version=#{e.system_version}"
-        )
-      end)
+    cond do
+      opts[:count] -> Mix.shell().info(to_string(length(entries)))
+      opts[:json] -> Mix.shell().info(IO.iodata_to_binary(:json.encode(%{include: entries})))
+      true -> Enum.each(entries, &Mix.shell().info(describe(&1)))
     end
   end
 
   @doc false
-  @spec build_entries!(Path.t()) :: [
+  @spec build_entries!(Path.t(), keyword()) :: [
           %{
             package: String.t(),
             module: String.t(),
@@ -68,10 +134,68 @@ defmodule Mix.Tasks.Nbpr.Matrix do
             system_version: String.t()
           }
         ]
-  def build_entries!(root) do
+  def build_entries!(root, opts \\ []) do
     systems = prebuild_systems!(root)
     packages = discover_packages!(root)
 
+    packages
+    |> full_cross_product(systems)
+    |> scope_to_changes(root, packages, opts)
+    |> restrict(:target, opts[:target])
+    |> restrict(:package, normalise_package(opts[:package]))
+  end
+
+  @doc false
+  @spec module_for(String.t()) :: String.t()
+  def module_for("nbpr_" <> short) do
+    "NBPR." <> Macro.camelize(short)
+  end
+
+  @doc """
+  Filters `entries` down to the work implied by a diff. Pure, so the scoping
+  rules are testable without a git repository.
+
+  `changed_paths` are repo-relative paths. `changed_targets` are the targets
+  whose `@prebuild_systems` pin moved. `default_target` carries the smoke
+  coverage for changes that affect how builds run without invalidating any
+  cache key.
+  """
+  @spec select([map()], [String.t()], [String.t()], String.t()) :: [map()]
+  def select(entries, changed_paths, changed_targets, default_target) do
+    changed_packages = changed_packages(changed_paths)
+    smoke? = Enum.any?(changed_paths, &affects_builds?/1)
+
+    entries
+    |> Enum.filter(fn entry ->
+      entry.package in changed_packages or
+        entry.target in changed_targets or
+        (smoke? and entry.target == default_target)
+    end)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Returns the targets whose `@prebuild_systems` pin differs between two
+  `mix.exs` texts — the set whose artefacts a version bump invalidated.
+  """
+  @spec changed_targets(String.t(), String.t()) :: [String.t()]
+  def changed_targets(previous_mix_exs, current_mix_exs) do
+    previous = system_pins(previous_mix_exs)
+
+    current_mix_exs
+    |> system_pins()
+    |> Enum.reject(fn {target, version} -> Map.get(previous, target) == version end)
+    |> Enum.map(fn {target, _version} -> target end)
+    |> Enum.sort()
+  end
+
+  defp system_pins(mix_exs) do
+    @system_pin_regex
+    |> Regex.scan(mix_exs)
+    |> Map.new(fn [_match, target, version] -> {target, version} end)
+  end
+
+  defp full_cross_product(packages, systems) do
     for package <- packages,
         {target, _github, version} <- systems do
       %{
@@ -83,10 +207,115 @@ defmodule Mix.Tasks.Nbpr.Matrix do
     end
   end
 
-  @doc false
-  @spec module_for(String.t()) :: String.t()
-  def module_for("nbpr_" <> short) do
-    "NBPR." <> Macro.camelize(short)
+  defp scope_to_changes(entries, root, packages, opts) do
+    case opts[:changed_since] do
+      nil ->
+        entries
+
+      ref ->
+        default_target = opts[:default_target] || @default_target
+
+        case changed_paths(root, ref) do
+          {:ok, paths} ->
+            select(entries, paths, targets_from_diff(root, ref, paths), default_target)
+
+          :error ->
+            # No usable diff (shallow clone, unrelated histories, a
+            # zero-SHA `before` on a branch's first push). Build every
+            # package on the default target rather than nothing: too much
+            # work is recoverable, silently skipping the build isn't.
+            Mix.shell().error(
+              "[nbpr.matrix] could not diff against #{ref}; falling back to " <>
+                "all #{length(packages)} packages on #{default_target}"
+            )
+
+            select(entries, ["nbpr/"], [], default_target)
+        end
+    end
+  end
+
+  defp changed_paths(root, ref) do
+    case System.cmd("git", ["-C", root, "diff", "--name-only", "#{ref}...HEAD"],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} -> {:ok, output |> String.split("\n", trim: true) |> Enum.map(&String.trim/1)}
+      _ -> :error
+    end
+  end
+
+  defp targets_from_diff(root, ref, paths) do
+    if "mix.exs" in paths do
+      case System.cmd("git", ["-C", root, "show", "#{ref}:mix.exs"], stderr_to_stdout: true) do
+        {previous, 0} -> changed_targets(previous, File.read!(Path.join(root, "mix.exs")))
+        _ -> []
+      end
+    else
+      []
+    end
+  end
+
+  defp changed_packages(changed_paths) do
+    for path <- changed_paths,
+        ["packages", package | _rest] <- [Path.split(path)],
+        String.starts_with?(package, "nbpr_"),
+        uniq: true,
+        do: package
+  end
+
+  # A change here can alter what a build produces without moving any cache
+  # key, so it earns smoke coverage. Package directories are handled
+  # separately, and everything else — docs, the release workflows, the test
+  # workflow — has no bearing on a Buildroot build.
+  defp affects_builds?(path) do
+    String.starts_with?(path, "nbpr/") or path == ".github/workflows/build.yml"
+  end
+
+  defp restrict(entries, _key, nil), do: entries
+
+  defp restrict(entries, key, value) do
+    case Enum.filter(entries, &(Map.fetch!(&1, key) == value)) do
+      [] ->
+        Mix.raise(
+          "no matrix entries with #{key} #{inspect(value)}; " <>
+            "known values: #{entries |> Enum.map(&Map.fetch!(&1, key)) |> Enum.uniq() |> Enum.sort() |> Enum.join(", ")}"
+        )
+
+      filtered ->
+        filtered
+    end
+  end
+
+  defp normalise_package(nil), do: nil
+  defp normalise_package("nbpr_" <> _rest = package), do: package
+  defp normalise_package(short), do: "nbpr_" <> short
+
+  defp enforce_limit!(entries, opts) do
+    max = Keyword.get(opts, :max, @gha_matrix_limit)
+
+    if max > 0 and length(entries) > max do
+      Mix.raise("""
+      matrix has #{length(entries)} entries, over the limit of #{max}.
+
+      GitHub Actions refuses to expand a matrix beyond #{@gha_matrix_limit}
+      configurations, and reports it as a run-level error with no job
+      attached — so the run fails while every *check* still passes, and
+      branch protection waves it through.
+
+      Narrow the matrix instead:
+
+        --changed-since <ref>   only the work a diff implies
+        --target <target>       one target at a time
+        --package <name>        one package at a time
+
+      Or pass `--max 0` if you genuinely want the whole list printed.
+      """)
+    end
+
+    entries
+  end
+
+  defp describe(entry) do
+    "#{entry.package}\tmodule=#{entry.module}\ttarget=#{entry.target}\tsystem_version=#{entry.system_version}"
   end
 
   defp discover_packages!(root) do

@@ -174,8 +174,18 @@ Commit conventions (also documented in
 - One commit per logical change. Don't squash unrelated work.
 - Don't bypass commit hooks.
 
-CI runs the package matrix on push: every (package × target × system
-version) is built. If anything fails, the PR shouldn't merge.
+CI builds what the diff implies. A new package directory means your
+package is built for every target in the workspace `@prebuild_systems`
+map; a library change instead takes smoke coverage across all packages on
+one target. If anything fails, the PR shouldn't merge.
+
+The full cross-product is deliberately not what runs: at ten targets it
+passes GitHub's 256-configuration ceiling somewhere around 26 packages,
+and an oversized matrix fails the run at strategy-evaluation time —
+which produces no failing *check*, so branch protection lets it through.
+`mix nbpr.matrix` refuses to emit more than 256 entries for that reason.
+To rebuild everything from scratch, dispatch the `build` workflow one
+target at a time.
 
 ## 9. After merge — automatic release
 

@@ -5,14 +5,30 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Restrict to one target (e.g. rpi4). A full rebuild has to be run one target at a time — the whole cross-product exceeds GitHub's 256-configuration cap."
+        required: false
+        type: string
+      package:
+        description: "Restrict to one package (e.g. flac, or nbpr_flac)."
+        required: false
+        type: string
 
 jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
+      count: ${{ steps.gen.outputs.count }}
     steps:
+      # Full history: the matrix is scoped by `git diff`, and a shallow
+      # clone has no merge-base to diff against. `mix nbpr.matrix` would
+      # fall back to building every package on the default target — correct
+      # but far more work than the diff asked for.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: erlef/setup-beam@v1
         with:
@@ -29,17 +45,45 @@ jobs:
           mix archive.install hex nerves_bootstrap --force
           mix deps.get
 
-      # `mix nbpr.matrix` reads the workspace `mix.exs` `@prebuild_systems`
-      # and walks `packages/nbpr_*` to emit (package × target × system_version).
+      # `mix nbpr.matrix` walks `packages/nbpr_*` against the workspace
+      # `mix.exs` `@prebuild_systems`, scoped to the work the diff implies:
+      # a changed package on every target, a moved system pin on that
+      # target, a library or build-workflow change as smoke coverage on one
+      # target. The full cross-product is past GitHub's 256-configuration
+      # limit, and rebuilding an artefact whose cache key hasn't moved
+      # publishes nothing anyway.
       - id: gen
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          INPUT_TARGET: ${{ inputs.target }}
+          INPUT_PACKAGE: ${{ inputs.package }}
         run: |
-          MATRIX=$(mix nbpr.matrix --json)
+          case "${{ github.event_name }}" in
+            pull_request) SCOPE=(--changed-since "$BASE_SHA") ;;
+            push)         SCOPE=(--changed-since "$BEFORE_SHA") ;;
+            *)            SCOPE=() ;;
+          esac
+
+          # `if` rather than `[ ... ] && ...`: a false test in a `&&` list
+          # leaves the step's last exit status non-zero under `bash -e`.
+          if [ -n "$INPUT_TARGET" ]; then SCOPE+=(--target "$INPUT_TARGET"); fi
+          if [ -n "$INPUT_PACKAGE" ]; then SCOPE+=(--package "$INPUT_PACKAGE"); fi
+
+          MATRIX=$(mix nbpr.matrix --json "${SCOPE[@]}")
+          COUNT=$(mix nbpr.matrix --count "${SCOPE[@]}")
+
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "Generated matrix:"
-          echo "$MATRIX" | python3 -m json.tool
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+          echo "Generated matrix ($COUNT configurations):"
+          echo "$MATRIX" | jq .
 
   build:
     needs: generate-matrix
+    # An empty matrix makes GitHub skip this job anyway; being explicit
+    # keeps a docs-only diff from reading as a mysterious skip.
+    if: needs.generate-matrix.outputs.count != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
