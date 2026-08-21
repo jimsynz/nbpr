@@ -179,13 +179,18 @@ package is built for every target in the workspace `@prebuild_systems`
 map; a library change instead takes smoke coverage across all packages on
 one target. If anything fails, the PR shouldn't merge.
 
-The full cross-product is deliberately not what runs: at ten targets it
-passes GitHub's 256-configuration ceiling somewhere around 26 packages,
-and an oversized matrix fails the run at strategy-evaluation time —
-which produces no failing *check*, so branch protection lets it through.
-`mix nbpr.matrix` refuses to emit more than 256 entries for that reason.
-To rebuild everything from scratch, dispatch the `build` workflow one
-target at a time.
+The full cross-product isn't what a diff runs, but it does still fit: the
+build fans out as a two-level matrix, one outer slice per target and an
+inner matrix of that target's packages. GitHub caps a *single job's*
+strategy at 256 configurations, and each slice is its own job with its own
+budget, so the ceiling is targets × packages rather than a flat 256 — it
+won't need revisiting as packages are added.
+
+To rebuild everything from scratch, dispatch the `build` workflow with
+`full` set; narrow it with the `target` or `package` inputs for less. An
+oversized single slice would still fail the run at strategy-evaluation
+time, which produces no failing *check* and so slips past branch
+protection, and `mix nbpr.matrix` refuses to emit one for that reason.
 
 ## 9. After merge — automatic release
 

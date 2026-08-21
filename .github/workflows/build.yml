@@ -6,8 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      full:
+        description: "Rebuild every package on every target, ignoring what changed."
+        required: false
+        default: false
+        type: boolean
       target:
-        description: "Restrict to one target (e.g. rpi4). A full rebuild has to be run one target at a time — the whole cross-product exceeds GitHub's 256-configuration cap."
+        description: "Restrict to one target (e.g. rpi4)."
         required: false
         type: string
       package:
@@ -19,7 +24,7 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.gen.outputs.matrix }}
+      slices: ${{ steps.gen.outputs.slices }}
       count: ${{ steps.gen.outputs.count }}
     steps:
       # Full history: the matrix is scoped by `git diff`, and a shallow
@@ -49,13 +54,20 @@ jobs:
       # `mix.exs` `@prebuild_systems`, scoped to the work the diff implies:
       # a changed package on every target, a moved system pin on that
       # target, a library or build-workflow change as smoke coverage on one
-      # target. The full cross-product is past GitHub's 256-configuration
-      # limit, and rebuilding an artefact whose cache key hasn't moved
-      # publishes nothing anyway.
+      # target. Rebuilding an artefact whose cache key hasn't moved
+      # publishes nothing — `mix nbpr.publish` treats a published tarball
+      # as immutable.
+      #
+      # `--slices` emits the outer half of a two-level matrix: one entry per
+      # target, each carrying its own inner matrix. GitHub caps a single
+      # job's strategy at 256 configurations, and each slice below becomes
+      # its own job with its own budget, so the ceiling is targets ×
+      # packages rather than a flat 256.
       - id: gen
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE_SHA: ${{ github.event.before }}
+          INPUT_FULL: ${{ inputs.full }}
           INPUT_TARGET: ${{ inputs.target }}
           INPUT_PACKAGE: ${{ inputs.package }}
         run: |
@@ -65,111 +77,41 @@ jobs:
             *)            SCOPE=() ;;
           esac
 
+          # A dispatch with `full` set ignores the diff — the from-scratch
+          # rebuild, which two-level slicing lets us run in one go.
+          if [ "$INPUT_FULL" = "true" ]; then SCOPE=(); fi
+
           # `if` rather than `[ ... ] && ...`: a false test in a `&&` list
           # leaves the step's last exit status non-zero under `bash -e`.
           if [ -n "$INPUT_TARGET" ]; then SCOPE+=(--target "$INPUT_TARGET"); fi
           if [ -n "$INPUT_PACKAGE" ]; then SCOPE+=(--package "$INPUT_PACKAGE"); fi
 
-          MATRIX=$(mix nbpr.matrix --json "${SCOPE[@]}")
+          SLICES=$(mix nbpr.matrix --slices "${SCOPE[@]}")
           COUNT=$(mix nbpr.matrix --count "${SCOPE[@]}")
 
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "slices=$SLICES" >> "$GITHUB_OUTPUT"
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
-          echo "Generated matrix ($COUNT configurations):"
-          echo "$MATRIX" | jq .
+          echo "$COUNT configurations across $(echo "$SLICES" | jq '.include | length') slices:"
+          echo "$SLICES" | jq -r '.include[] | "  \(.target): \(.count)"'
 
+  # One job per slice, each instantiating build-slice.yml with its own
+  # inner matrix and therefore its own configuration budget. The `if`
+  # keeps a docs-only diff from reading as a mysterious skip.
   build:
     needs: generate-matrix
-    # An empty matrix makes GitHub skip this job anyway; being explicit
-    # keeps a docs-only diff from reading as a mysterious skip.
     if: needs.generate-matrix.outputs.count != '0'
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-
-    name: ${{ matrix.package }} / ${{ matrix.target }}
-
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.slices) }}
+    name: ${{ matrix.target }}
+    # Granted here rather than only inside build-slice.yml: a called
+    # workflow's permissions can be maintained or reduced along the chain,
+    # never elevated, so a slice asking for `packages: write` that the
+    # caller hasn't granted fails the whole run before any job starts.
     permissions:
       contents: read
       packages: write
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: erlef/setup-beam@v1
-        with:
-          version-file: .tool-versions
-          version-type: strict
-
-      # Buildroot download cache: keyed on system+version because BR version
-      # (and therefore source tarball + toolchain set) is determined by the
-      # active `nerves_system_*`. Cross-target sharing within the same BR
-      # version happens naturally if any future targets land on the same
-      # version.
-      - name: Cache Buildroot downloads
-        uses: actions/cache@v6
-        with:
-          path: ~/.local/share/nerves/buildroot-dl
-          key: br-dl-${{ matrix.target }}-${{ matrix.system_version }}
-          restore-keys: |
-            br-dl-${{ matrix.target }}-
-
-      # GitHub-fetched system source; static per (system, version).
-      - name: Cache nerves_system source shim
-        uses: actions/cache@v6
-        with:
-          path: ~/.local/share/nerves/nbpr/system-source
-          key: sys-src-${{ matrix.target }}-${{ matrix.system_version }}
-
-      # Patched Buildroot tree; static per BR version. Multiple targets on
-      # the same BR version share this.
-      - name: Cache Buildroot source tree
-        uses: actions/cache@v6
-        with:
-          path: ~/.local/share/nerves/nbpr/buildroot
-          key: br-src-${{ matrix.system_version }}
-
-      - name: Resolve Hex/git deps for this target
-        env:
-          MIX_TARGET: ${{ matrix.target }}
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix archive.install hex nerves_bootstrap --force
-          mix deps.get
-
-      - name: Build artefact
-        env:
-          MIX_TARGET: ${{ matrix.target }}
-        run: |
-          # Take the Docker fallback path on plain `ubuntu-latest` runners.
-          # The native path requires a Nerves canonical build env — stock
-          # ubuntu's gcc mishandles the cross-toolchain wrappers (stray
-          # `gnu` ends up in CFLAGS, breaks compile of larger packages
-          # like dnsmasq). Docker pulls the 1 GB canonical container once
-          # per runner; cached buildroot-dl tarballs are mounted in.
-          mkdir -p out
-          mix nbpr.build ${{ matrix.module }} -o out/
-          ls -la out/
-
-      - name: Publish to GHCR
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # nbpr.publish short-circuits when the tag is already on GHCR
-          # (NBPR's cache-key model treats published tarballs as immutable).
-          for tarball in out/*.tar.gz; do
-            mix nbpr.publish ${{ matrix.module }} "$tarball"
-          done
-
-      - name: Upload artefact (PR runs)
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.package }}-${{ matrix.target }}-${{ matrix.system_version }}
-          path: out/*.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+    uses: ./.github/workflows/build-slice.yml
+    with:
+      matrix: ${{ matrix.matrix }}

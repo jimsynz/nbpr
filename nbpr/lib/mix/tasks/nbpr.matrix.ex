@@ -10,14 +10,10 @@ defmodule Mix.Tasks.Nbpr.Matrix do
 
   ## Scoping by change
 
-  The full cross-product outgrows GitHub Actions' 256-configuration limit
-  per job — at ten targets that ceiling arrives at 26 packages — and
-  rebuilding an artefact whose cache key hasn't moved achieves nothing
-  anyway, since `mix nbpr.publish` treats a published tarball as immutable
-  and short-circuits.
-
-  So CI passes `--changed-since <ref>` and gets only the work the diff
-  implies:
+  Rebuilding an artefact whose cache key hasn't moved achieves nothing —
+  `mix nbpr.publish` treats a published tarball as immutable and
+  short-circuits — so CI passes `--changed-since <ref>` and gets only the
+  work the diff implies:
 
     * a `packages/nbpr_<name>/` file changed — that package, every target.
       Its version or metadata moved, so every target's artefact is stale.
@@ -36,7 +32,29 @@ defmodule Mix.Tasks.Nbpr.Matrix do
 
   Without `--changed-since` the full cross-product is emitted, which is
   what `workflow_dispatch` wants for a deliberate from-scratch rebuild.
-  Narrow it with `--target` or `--package` to stay under the cap.
+
+  ## GitHub's 256-configuration cap
+
+  GitHub refuses to expand a *single job's* strategy past 256
+  configurations. Two probes established what's actually enforced, since
+  the documented "256 jobs per workflow run" isn't it:
+
+    * two sibling jobs of 200 and 100 configurations expanded all 300 —
+      so the cap is per strategy, not per run;
+    * an outer matrix of 2 driving a reusable workflow with a 200-entry
+      inner matrix expanded all 400 — so `strategy` is honoured on a
+      `uses:` job, and each instantiated inner strategy gets its own
+      budget.
+
+  So `--slices` emits the outer half of a two-level matrix, one entry per
+  target, each carrying its own inner matrix. Capacity becomes 256 targets
+  × 256 packages instead of 256 in total, and adding packages never needs
+  this revisited.
+
+  `--max` still guards each slice, because an oversized strategy fails the
+  run at strategy-evaluation time with no failing *check* to show for it:
+  the run goes red while every check stays green and branch protection
+  waves it through.
 
   ## Output
 
@@ -67,6 +85,9 @@ defmodule Mix.Tasks.Nbpr.Matrix do
   ## Flags
 
     * `--json` — emit `{"include": [...]}` JSON suitable for GHA dynamic matrix
+    * `--slices` — emit the outer matrix of a two-level fan-out: one entry
+      per target, each carrying its target's inner matrix as a string. This
+      is what CI feeds to `build-slice.yml`.
     * `--count` — emit just the number of entries, for a workflow that needs
       to know whether there's work before defining a job
     * `--changed-since <ref>` — scope to the work implied by
@@ -102,6 +123,7 @@ defmodule Mix.Tasks.Nbpr.Matrix do
 
   @switches [
     json: :boolean,
+    slices: :boolean,
     count: :boolean,
     changed_since: :string,
     default_target: :string,
@@ -116,13 +138,58 @@ defmodule Mix.Tasks.Nbpr.Matrix do
     {opts, _, _} = OptionParser.parse(args, switches: @switches)
 
     root = opts[:root] || File.cwd!()
-    entries = root |> build_entries!(opts) |> enforce_limit!(opts)
+    entries = build_entries!(root, opts)
 
     cond do
-      opts[:count] -> Mix.shell().info(to_string(length(entries)))
-      opts[:json] -> Mix.shell().info(IO.iodata_to_binary(:json.encode(%{include: entries})))
-      true -> Enum.each(entries, &Mix.shell().info(describe(&1)))
+      opts[:count] ->
+        Mix.shell().info(to_string(length(entries)))
+
+      opts[:slices] ->
+        Mix.shell().info(IO.iodata_to_binary(:json.encode(%{include: slices(entries, opts)})))
+
+      opts[:json] ->
+        entries
+        |> enforce_limit!(opts)
+        |> then(&Mix.shell().info(IO.iodata_to_binary(:json.encode(%{include: &1}))))
+
+      true ->
+        Enum.each(entries, &Mix.shell().info(describe(&1)))
     end
+  end
+
+  @doc """
+  Groups `entries` into one slice per target, each carrying its own inner
+  matrix JSON as a string.
+
+  This is the outer half of a two-level matrix. GitHub caps a *single job's*
+  strategy at 256 configurations, but a reusable workflow called from a
+  matrix'd job instantiates a fresh inner job with its own budget — verified
+  by probe: an outer matrix of 2 driving an inner matrix of 200 expanded all
+  400. So capacity multiplies rather than adds, and the cap stops being
+  something this repo has to plan around.
+
+  Slicing by target rather than by arbitrary shards means a slice is exactly
+  one `(system, system_version)`, which is what a build job's caches are keyed
+  on anyway. The inner matrix is embedded as a *string* deliberately: the
+  workflow then reads `${{ matrix.matrix }}` straight out of the outer matrix
+  context, with no JSON-object indexing in a `with:` block.
+  """
+  @spec slices([map()], keyword()) :: [map()]
+  def slices(entries, opts \\ []) do
+    entries
+    |> Enum.group_by(& &1.target)
+    |> Enum.sort_by(fn {target, _} -> target end)
+    |> Enum.map(fn {target, slice} ->
+      %{
+        target: target,
+        system_version: slice |> hd() |> Map.fetch!(:system_version),
+        count: length(slice),
+        matrix:
+          slice
+          |> enforce_limit!(opts)
+          |> then(&IO.iodata_to_binary(:json.encode(%{include: &1})))
+      }
+    end)
   end
 
   @doc false

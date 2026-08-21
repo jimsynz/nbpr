@@ -85,6 +85,42 @@ defmodule Mix.Tasks.Nbpr.MatrixTest do
     end
   end
 
+  describe "slices/2" do
+    test "groups entries into one slice per target" do
+      slices = Matrix.slices(entries())
+
+      assert Enum.map(slices, & &1.target) == Enum.sort(@targets)
+      assert Enum.map(slices, & &1.count) == [2, 2, 2]
+    end
+
+    test "each slice carries its own inner matrix as a JSON string" do
+      [slice | _] = Matrix.slices(entries())
+
+      assert is_binary(slice.matrix)
+
+      inner = JSON.decode!(slice.matrix)
+      assert length(inner["include"]) == slice.count
+      assert Enum.uniq(Enum.map(inner["include"], & &1["target"])) == [slice.target]
+    end
+
+    test "every entry lands in exactly one slice" do
+      all = entries()
+      total = all |> Matrix.slices() |> Enum.map(& &1.count) |> Enum.sum()
+
+      assert total == length(all)
+    end
+
+    test "an empty entry list slices to nothing" do
+      assert Matrix.slices([]) == []
+    end
+
+    test "the size guard applies per slice, not to the total" do
+      # 3 targets × 2 packages, so any single slice is 2 entries. A limit of
+      # 2 passes despite the total being 6 — the point of the split.
+      assert Matrix.slices(entries(), max: 2) |> length() == 3
+    end
+  end
+
   describe "changed_targets/2" do
     test "reports only the targets whose pinned version moved" do
       previous = mix_exs(%{"rpi4" => "2.1.0", "bbb" => "2.30.1"})
