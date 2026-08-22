@@ -174,8 +174,23 @@ Commit conventions (also documented in
 - One commit per logical change. Don't squash unrelated work.
 - Don't bypass commit hooks.
 
-CI runs the package matrix on push: every (package × target × system
-version) is built. If anything fails, the PR shouldn't merge.
+CI builds what the diff implies. A new package directory means your
+package is built for every target in the workspace `@prebuild_systems`
+map; a library change instead takes smoke coverage across all packages on
+one target. If anything fails, the PR shouldn't merge.
+
+The full cross-product isn't what a diff runs, but it does still fit: the
+build fans out as a two-level matrix, one outer slice per target and an
+inner matrix of that target's packages. GitHub caps a *single job's*
+strategy at 256 configurations, and each slice is its own job with its own
+budget, so the ceiling is targets × packages rather than a flat 256 — it
+won't need revisiting as packages are added.
+
+To rebuild everything from scratch, dispatch the `build` workflow with
+`full` set; narrow it with the `target` or `package` inputs for less. An
+oversized single slice would still fail the run at strategy-evaluation
+time, which produces no failing *check* and so slips past branch
+protection, and `mix nbpr.matrix` refuses to emit one for that reason.
 
 ## 9. After merge — automatic release
 
@@ -230,3 +245,28 @@ You don't tag or publish manually.
   to underscored module names (`NBPR.KernelModules`) and underscored
   Hex package names (`nbpr_kernel_modules`). The generator handles the
   mapping; pass the BR-style hyphenated name to `mix nbpr.new`.
+
+- **Upstream that doesn't build on musl.** `x86_64` is the only musl system
+  in the matrix, and pre-C23 code tends to fail there specifically: musl
+  doesn't define `__GNU_LIBRARY__`, so vendored compatibility shims fall back
+  to K&R declarations that GCC 15 rejects under its C23 default.
+  `:nbpr_vorbis_tools` is the worked example. Where the fix belongs upstream
+  rather than in a patch we carry, declare `unsupported_libc: [:musl]` — CI
+  drops those combinations from the prebuild matrix, and `mix nbpr.build`
+  refuses them with the reason instead of letting Buildroot fail deep in a
+  compile.
+
+- **Packages that load files from a path fixed at build time** won't find
+  them. nbpr installs a package's `target/` files under its own `priv/`,
+  and only `PATH`, `LD_LIBRARY_PATH` and declared `runtime_env` are
+  rewritten to match — anything that `dlopen`s or `opendir`s a compiled-in
+  absolute path is looking at a rootfs location nbpr never populated.
+  Check the upstream `.mk` for a `--with-*-dir` or `libdir`-derived path
+  before assuming a package works. Where the path is configurable at
+  runtime, `runtime_env:` covers it (`:nbpr_iptables` redirects
+  `XTABLES_LIBDIR` into its priv dir that way). Where it isn't,
+  `:nbpr_libao` is the worked example of the limitation: its output plugins
+  live under `/usr/lib/ao/plugins-4` with no override, so only libao's
+  built-in drivers work. Fixing that case needs the plugin directory
+  installed at its rootfs path via the `rootfs/` artefact slice, which
+  `NBPR.Pack` carries but the Buildroot harvest step doesn't populate yet.

@@ -91,7 +91,37 @@ defmodule NBPR.BrPackageTest do
       assert pkg.daemons == []
       assert pkg.kernel_modules == []
       assert pkg.runtime_env == []
+      assert pkg.unsupported_libc == []
       assert pkg.artifact_sites == []
+    end
+
+    test "rejects a libc it doesn't recognise" do
+      assert_raise NimbleOptions.ValidationError, ~r/unsupported_libc/, fn ->
+        NBPR.BrPackage.build_metadata!(
+          [
+            version: 1,
+            br_package: "jq",
+            description: "test",
+            unsupported_libc: [:uclibc]
+          ],
+          __MODULE__.Nope
+        )
+      end
+    end
+
+    test "accepts a declared libc exclusion" do
+      pkg =
+        NBPR.BrPackage.build_metadata!(
+          [
+            version: 1,
+            br_package: "vorbis-tools",
+            description: "test",
+            unsupported_libc: [:musl]
+          ],
+          __MODULE__.MuslFree
+        )
+
+      assert pkg.unsupported_libc == [:musl]
     end
 
     test "splits :br_flag out of build_opts into build_opt_extensions" do

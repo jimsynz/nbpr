@@ -104,6 +104,12 @@ defmodule NBPR.BrPackage do
                        doc:
                          "Environment variables exported into the BEAM env at boot (so child processes spawned via MuonTrap or `System.cmd/2` inherit them). Values may interpolate `${NBPR_PRIV}`, which expands to this package's priv dir — e.g. `{\"XTABLES_LIBDIR\", \"${NBPR_PRIV}/usr/lib/xtables\"}` so `iptables` finds its extension objects. Multiple packages setting the same var are colon-joined, like `PATH`."
                      ],
+                     unsupported_libc: [
+                       type: {:list, {:in, [:gnu, :musl]}},
+                       default: [],
+                       doc:
+                         "C libraries this package cannot be built against. Combinations involving them are dropped from the CI prebuild matrix, and `mix nbpr.build` refuses them with an explanation rather than letting Buildroot fail deep in a compile. For upstream code that genuinely doesn't build on a libc — not for something we could fix by carrying a patch."
+                     ],
                      artifact_sites: [
                        type: {:list, {:tuple, [{:in, [:github_releases, :ghcr]}, :string]}},
                        default: [],
@@ -176,6 +182,7 @@ defmodule NBPR.BrPackage do
       daemons: daemons,
       kernel_modules: validated[:kernel_modules],
       runtime_env: validated[:runtime_env],
+      unsupported_libc: validated[:unsupported_libc],
       artifact_sites: validated[:artifact_sites]
     }
   end

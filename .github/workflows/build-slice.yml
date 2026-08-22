@@ -1,0 +1,112 @@
+# Builds one slice of the prebuild matrix — in practice, one target's
+# packages.
+#
+# Called from `build.yml` by a matrix'd job, which is what gets us past
+# GitHub's 256-configuration limit: that cap applies per job strategy, and
+# each call of this workflow instantiates a fresh `build` job with its own
+# budget. Outer slices × inner configurations, rather than a single flat
+# ceiling.
+name: build-slice
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: "Inner matrix JSON, from `mix nbpr.matrix --slices`."
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(inputs.matrix) }}
+
+    # Just the package: GitHub prefixes a called workflow's job name with
+    # the caller's, which already carries the target, so naming it here too
+    # reads as `qemu_aarch64 / nbpr_jq / qemu_aarch64`.
+    name: ${{ matrix.package }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      # Buildroot download cache: keyed on system+version because BR version
+      # (and therefore source tarball + toolchain set) is determined by the
+      # active `nerves_system_*`. Cross-target sharing within the same BR
+      # version happens naturally if any future targets land on the same
+      # version.
+      - name: Cache Buildroot downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/nerves/buildroot-dl
+          key: br-dl-${{ matrix.target }}-${{ matrix.system_version }}
+          restore-keys: |
+            br-dl-${{ matrix.target }}-
+
+      # GitHub-fetched system source; static per (system, version).
+      - name: Cache nerves_system source shim
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/nerves/nbpr/system-source
+          key: sys-src-${{ matrix.target }}-${{ matrix.system_version }}
+
+      # Patched Buildroot tree; static per BR version. Multiple targets on
+      # the same BR version share this.
+      - name: Cache Buildroot source tree
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/nerves/nbpr/buildroot
+          key: br-src-${{ matrix.system_version }}
+
+      - name: Resolve Hex/git deps for this target
+        env:
+          MIX_TARGET: ${{ matrix.target }}
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix archive.install hex nerves_bootstrap --force
+          mix deps.get
+
+      - name: Build artefact
+        env:
+          MIX_TARGET: ${{ matrix.target }}
+        run: |
+          # Take the Docker fallback path on plain `ubuntu-latest` runners.
+          # The native path requires a Nerves canonical build env — stock
+          # ubuntu's gcc mishandles the cross-toolchain wrappers (stray
+          # `gnu` ends up in CFLAGS, breaks compile of larger packages
+          # like dnsmasq). Docker pulls the 1 GB canonical container once
+          # per runner; cached buildroot-dl tarballs are mounted in.
+          mkdir -p out
+          mix nbpr.build ${{ matrix.module }} -o out/
+          ls -la out/
+
+      - name: Publish to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # nbpr.publish short-circuits when the tag is already on GHCR
+          # (NBPR's cache-key model treats published tarballs as immutable).
+          for tarball in out/*.tar.gz; do
+            mix nbpr.publish ${{ matrix.module }} "$tarball"
+          done
+
+      - name: Upload artefact (PR runs)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.package }}-${{ matrix.target }}-${{ matrix.system_version }}
+          path: out/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7

@@ -179,6 +179,90 @@
     },
     {
       "customType": "regex",
+      "description": "nbpr_libogg @version → Buildroot's `LIBOGG_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libogg/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libogg",
+      "packageNameTemplate": "libogg",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libvorbis @version → Buildroot's `LIBVORBIS_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libvorbis/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libvorbis",
+      "packageNameTemplate": "libvorbis",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libao @version → Buildroot's `LIBAO_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libao/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libao",
+      "packageNameTemplate": "libao",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libcurl @version → Buildroot's `LIBCURL_VERSION` line at the pinned BR_REF. Buildroot's package is named libcurl while the tarball it fetches is curl's, so the version tracked here is curl's own.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libcurl/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libcurl",
+      "packageNameTemplate": "libcurl",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_flac @version → Buildroot's `FLAC_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_flac/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "flac",
+      "packageNameTemplate": "flac",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_vorbis_tools @version → Buildroot's `VORBIS_TOOLS_VERSION` line at the pinned BR_REF. The Hex name underscores what Buildroot hyphenates, so packageName has to be the Buildroot spelling for the registry URL to resolve.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_vorbis_tools/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "vorbis-tools",
+      "packageNameTemplate": "vorbis-tools",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
       "managerFilePatterns": [
         "/^renovate\\.json$/"
