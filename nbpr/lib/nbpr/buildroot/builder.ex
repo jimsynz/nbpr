@@ -44,7 +44,7 @@ defmodule NBPR.Buildroot.Builder do
     system_source_path =
       SystemSource.ensure!(inputs.system_app, inputs.system_version)
 
-    check_libc_supported!(pkg, system_source_path, inputs.system_app)
+    ensure_libc_supported!(pkg, system_source_path, inputs.system_app)
 
     {:ok, nerves_system_br_path} = Buildroot.nerves_system_br_path()
     {:ok, br_version} = Buildroot.br_version(nerves_system_br_path)
@@ -114,11 +114,16 @@ defmodule NBPR.Buildroot.Builder do
     end
   end
 
-  # Refuses a combination the package says can't work, before Buildroot spends
-  # ten minutes proving it in a compile error. The matrix already leaves these
-  # out of CI; this is the guard for a consumer whose `mix firmware` falls
-  # through to a source build.
-  defp check_libc_supported!(pkg, system_source_path, system_app) do
+  @doc """
+  Raises when `pkg` declares the system's libc unsupported.
+
+  Refuses the combination before Buildroot spends ten minutes proving it in a
+  compile error. The prebuild matrix already leaves these out of CI, so this
+  guard is for a consumer whose `mix firmware` falls through to a source
+  build.
+  """
+  @spec ensure_libc_supported!(NBPR.Package.t(), Path.t(), atom()) :: :ok
+  def ensure_libc_supported!(pkg, system_source_path, system_app) do
     libc = libc_of_system(system_source_path)
 
     if libc in pkg.unsupported_libc do
@@ -134,6 +139,8 @@ defmodule NBPR.Buildroot.Builder do
       system whose toolchain uses a supported libc.
       """)
     end
+
+    :ok
   end
 
   defp render_defconfig!(pkg, system_source_path, br_source, build_opts) do
