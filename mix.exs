@@ -37,13 +37,65 @@ defmodule NBPR.Workspace.MixProject do
     qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.4.1"}
   }
 
+  # The C library each target's toolchain targets, from the toolchain named in
+  # that system's `nerves_defconfig` at the pinned tag. Nerves is glibc almost
+  # everywhere; `x86_64` is the musl one.
+  #
+  # Load-bearing rather than informational: a package that can't build against
+  # a libc says so with `unsupported_libc:`, and `mix nbpr.matrix` needs this
+  # to know which (package, target) pairs to leave out. The matrix runs on the
+  # host with no target resolved, so it can't ask a system directly.
+  @target_libc %{
+    rpi0: :gnu,
+    rpi0_2: :gnu,
+    rpi3: :gnu,
+    rpi3a: :gnu,
+    rpi4: :gnu,
+    rpi5: :gnu,
+    bbb: :gnu,
+    trellis: :gnu,
+    x86_64: :musl,
+    qemu_aarch64: :gnu
+  }
+
   @doc """
-  Returns the prebuild matrix as a list of `{target, github, version}` tuples.
-  Used by `mix nbpr.matrix` to emit the GHA dynamic matrix.
+  Returns the prebuild matrix as a list of `{target, github, version, libc}`
+  tuples. Used by `mix nbpr.matrix` to emit the GHA dynamic matrix.
+
+  Raises when the two maps have drifted apart, which is the failure mode of
+  keeping them separate: a target in one and not the other would otherwise be
+  dropped from CI silently, or matched against the wrong libc.
   """
   def prebuild_systems do
+    check_libc_coverage!()
+
     for {target, {github, version}} <- @prebuild_systems,
-        do: {target, github, version}
+        do: {target, github, version, Map.fetch!(@target_libc, target)}
+  end
+
+  defp check_libc_coverage! do
+    systems = @prebuild_systems |> Map.keys() |> MapSet.new()
+    known = @target_libc |> Map.keys() |> MapSet.new()
+
+    missing = systems |> MapSet.difference(known) |> Enum.sort()
+    extra = known |> MapSet.difference(systems) |> Enum.sort()
+
+    cond do
+      missing != [] ->
+        Mix.raise(
+          "@target_libc is missing an entry for #{inspect(missing)}; take the libc " <>
+            "from the toolchain named in that system's nerves_defconfig"
+        )
+
+      extra != [] ->
+        Mix.raise(
+          "@target_libc has entries for #{inspect(extra)}, which aren't in " <>
+            "@prebuild_systems; remove them or add the missing system pins"
+        )
+
+      true ->
+        :ok
+    end
   end
 
   def project do

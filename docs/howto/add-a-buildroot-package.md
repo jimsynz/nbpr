@@ -246,6 +246,16 @@ You don't tag or publish manually.
   Hex package names (`nbpr_kernel_modules`). The generator handles the
   mapping; pass the BR-style hyphenated name to `mix nbpr.new`.
 
+- **Upstream that doesn't build on musl.** `x86_64` is the only musl system
+  in the matrix, and pre-C23 code tends to fail there specifically: musl
+  doesn't define `__GNU_LIBRARY__`, so vendored compatibility shims fall back
+  to K&R declarations that GCC 15 rejects under its C23 default.
+  `:nbpr_vorbis_tools` is the worked example. Where the fix belongs upstream
+  rather than in a patch we carry, declare `unsupported_libc: [:musl]` — CI
+  drops those combinations from the prebuild matrix, and `mix nbpr.build`
+  refuses them with the reason instead of letting Buildroot fail deep in a
+  compile.
+
 - **Packages that load files from a path fixed at build time** won't find
   them. nbpr installs a package's `target/` files under its own `priv/`,
   and only `PATH`, `LD_LIBRARY_PATH` and declared `runtime_env` are

@@ -15,6 +15,12 @@ defmodule NBPR.VorbisToolsTest do
       assert pkg.daemons == []
       assert pkg.kernel_modules == []
     end
+
+    test "declares musl unsupported" do
+      pkg = NBPR.VorbisTools.__nbpr_package__()
+
+      assert pkg.unsupported_libc == [:musl]
+    end
   end
 
   describe "build options" do

@@ -44,6 +44,8 @@ defmodule NBPR.Buildroot.Builder do
     system_source_path =
       SystemSource.ensure!(inputs.system_app, inputs.system_version)
 
+    check_libc_supported!(pkg, system_source_path, inputs.system_app)
+
     {:ok, nerves_system_br_path} = Buildroot.nerves_system_br_path()
     {:ok, br_version} = Buildroot.br_version(nerves_system_br_path)
 
@@ -88,6 +90,49 @@ defmodule NBPR.Buildroot.Builder do
             Path.join(System.user_home!(), ".local/share")
 
         Path.join(base, "nerves")
+    end
+  end
+
+  @doc """
+  The C library a system's toolchain targets, read from its `nerves_defconfig`.
+
+  Buildroot's own kconfig is the source of truth here rather than the
+  toolchain's name, since that's what decides which libc the package is
+  actually compiled against. Anything that isn't explicitly musl is treated as
+  glibc, which is every Nerves system bar `x86_64`.
+  """
+  @spec libc_of_system(Path.t()) :: NBPR.Package.libc()
+  def libc_of_system(system_source_path) do
+    defconfig = Path.join(system_source_path, "nerves_defconfig")
+
+    case File.read(defconfig) do
+      {:ok, contents} ->
+        if contents =~ ~r/^BR2_TOOLCHAIN_EXTERNAL_CUSTOM_MUSL=y$/m, do: :musl, else: :gnu
+
+      {:error, _} ->
+        :gnu
+    end
+  end
+
+  # Refuses a combination the package says can't work, before Buildroot spends
+  # ten minutes proving it in a compile error. The matrix already leaves these
+  # out of CI; this is the guard for a consumer whose `mix firmware` falls
+  # through to a source build.
+  defp check_libc_supported!(pkg, system_source_path, system_app) do
+    libc = libc_of_system(system_source_path)
+
+    if libc in pkg.unsupported_libc do
+      Mix.raise("""
+      #{pkg.name} cannot be built against #{libc}.
+
+      #{system_app} uses #{libc}, and this package declares
+      `unsupported_libc: #{inspect(pkg.unsupported_libc)}` — upstream code that
+      doesn't compile there, rather than something nbpr chooses not to build.
+      See `#{inspect(pkg.module)}`'s documentation for the specifics.
+
+      Either drop #{pkg.name} from this firmware's dependencies, or target a
+      system whose toolchain uses a supported libc.
+      """)
     end
   end
 

@@ -264,13 +264,28 @@ defmodule Mix.Tasks.Nbpr.Matrix do
 
   defp full_cross_product(packages, systems) do
     for package <- packages,
-        {target, _github, version} <- systems do
+        {target, _github, version, libc} <- systems,
+        supported?(package, libc) do
       %{
         package: package,
         module: module_for(package),
         target: Atom.to_string(target),
         system_version: version
       }
+    end
+  end
+
+  # A package declaring `unsupported_libc:` is left out of those targets
+  # entirely — the artefact can't be built, so a matrix entry for it is a job
+  # that exists only to go red. A package whose module isn't loadable is kept:
+  # the matrix shouldn't quietly drop work because introspection failed.
+  defp supported?(package, libc) do
+    module = Module.concat([module_for(package)])
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :__nbpr_package__, 0) do
+      libc not in module.__nbpr_package__().unsupported_libc
+    else
+      true
     end
   end
 

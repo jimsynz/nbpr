@@ -85,6 +85,23 @@ System.cmd("ogg123", ["/data/clip.ogg"])
 five binaries are unaffected — none of them touches libao.
 
 
+## Not available on musl targets
+
+`x86_64` is the one musl system NBPR builds for, and vorbis-tools doesn't
+compile there. It vendors a copy of GNU `getopt`, guarded on
+`__GNU_LIBRARY__` — which musl doesn't define — so the compiler sees K&R
+declarations like `char *getenv ();`. GCC 15 defaults to C23, where `()`
+means *no* parameters rather than "unspecified", and the build fails with
+`too many arguments to function 'getenv'`.
+
+The package declares this rather than failing late: `x86_64` is left out of
+the prebuild matrix, and a source build for it stops with an explanation
+instead of a Buildroot compile error. A real fix means Buildroot carrying
+`-std=gnu17` for this package or patching the vendored getopt.
+
+Every other target is glibc and unaffected.
+
+
 ## Configuration
 
 Build options can be overridden in your app's `config/target.exs`:

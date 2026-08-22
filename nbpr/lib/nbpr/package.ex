@@ -11,6 +11,12 @@ defmodule NBPR.Package do
 
   @type artifact_site :: {:github_releases, String.t()} | {:ghcr, String.t()}
 
+  @typedoc """
+  The C library a Nerves system's toolchain targets. Nerves systems are
+  overwhelmingly glibc; `x86_64` is the musl one.
+  """
+  @type libc :: :gnu | :musl
+
   @type t :: %__MODULE__{
           name: atom(),
           version: pos_integer(),
@@ -24,6 +30,7 @@ defmodule NBPR.Package do
           daemons: [Daemon.t()],
           kernel_modules: [String.t()],
           runtime_env: [{String.t(), String.t()}],
+          unsupported_libc: [libc()],
           artifact_sites: [artifact_site()]
         }
 
@@ -40,6 +47,7 @@ defmodule NBPR.Package do
     :daemons,
     :kernel_modules,
     :runtime_env,
+    :unsupported_libc,
     :artifact_sites
   ]
 end

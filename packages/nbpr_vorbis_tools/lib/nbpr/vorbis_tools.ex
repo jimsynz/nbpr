@@ -42,6 +42,32 @@ defmodule NBPR.VorbisTools do
   See `NBPR.Libao` for the detail and what a fix needs. Every other binary
   here is unaffected: none of them touches libao.
 
+  ## Not available on musl targets
+
+  `x86_64` is the one musl system in the matrix, and vorbis-tools doesn't
+  build there. It vendors a copy of GNU `getopt` under `share/`, whose
+  preamble reads:
+
+      #ifdef __GNU_LIBRARY__
+      # include <stdlib.h>
+      #else
+      char *getenv ();
+      #endif
+
+  musl doesn't define `__GNU_LIBRARY__`, so that K&R declaration is what the
+  compiler sees — and GCC 15 defaults to C23, where `()` means *no*
+  parameters rather than "unspecified". `getenv("POSIXLY_CORRECT")` then
+  fails to compile, as does `getopt` itself against `extern int getopt ();`.
+
+  So the package declares `unsupported_libc: [:musl]`: CI leaves those
+  combinations out of the prebuild matrix, and `mix nbpr.build` refuses them
+  with this explanation rather than letting Buildroot fail deep in a compile.
+  Fixing it properly means Buildroot carrying `-std=gnu17` for this package
+  or patching the vendored getopt — upstream's call, not something to paper
+  over here.
+
+  Every glibc target is unaffected, which is all the rest of them.
+
   ## FLAC input
 
   The `flac` option adds `libFLAC` to the build, letting `oggenc` take
@@ -67,6 +93,7 @@ defmodule NBPR.VorbisTools do
     br_package: "vorbis-tools",
     description: "Command-line player, encoder and decoder for Ogg Vorbis",
     homepage: "https://xiph.org/vorbis/",
+    unsupported_libc: [:musl],
     build_opts: [
       flac: [
         type: :boolean,
