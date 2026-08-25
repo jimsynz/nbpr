@@ -21,11 +21,19 @@ defmodule Mix.Tasks.Nbpr.Matrix do
       package, but only the targets whose version moved. The system version
       is part of the cache key, so a bump invalidates that target's
       artefacts across the board and leaves every other target alone.
-    * anything else that can change how a build runs — the `:nbpr` library
-      itself, this workflow — every package against `--default-target`
-      only. A library change doesn't invalidate a cache key, so this is
+    * anything else that can change how a build runs — the `:nbpr`
+      library's build path, this workflow — every package against
+      `--default-target` only. Neither invalidates a cache key, so this is
       smoke coverage rather than a rebuild: broad across packages, one
       target deep.
+
+  Not every library change qualifies. `nbpr/` holds tooling and runtime
+  code that no Buildroot build can reach — the test suite, `mix.exs`, the
+  `nbpr.new`/`nbpr.install`/`nbpr.inspect` family, the on-device runtime
+  modules — and a change confined to those selects nothing. Anything else
+  under `nbpr/` does earn smoke coverage, including files added later: an
+  unrecognised module is assumed to matter, since over-building is
+  recoverable where silently building nothing isn't.
 
   Entries are deduplicated, so a package that qualifies twice is built
   once per target.
@@ -120,6 +128,30 @@ defmodule Mix.Tasks.Nbpr.Matrix do
   # the same shape Renovate's custom manager matches, so the two agree on
   # what a pin looks like.
   @system_pin_regex ~r/\{"nerves-project\/nerves_system_([A-Za-z0-9_]+)",\s*"([0-9]+(?:\.[0-9]+){1,2})"\}/
+
+  # Paths under `nbpr/` that cannot reach a Buildroot build, and so earn no
+  # smoke coverage: the library's own metadata and test suite, the tasks that
+  # run outside a build, and the modules that only execute on a device. Named
+  # individually rather than as an allowlist of the build path, because
+  # anything unrecognised should still be assumed to matter — over-building is
+  # recoverable, silently building nothing isn't.
+  @inert_library_paths [
+    ".formatter.exs",
+    "README.md",
+    "lib/mix/tasks/nbpr.cache.ex",
+    "lib/mix/tasks/nbpr.catalogue.ex",
+    "lib/mix/tasks/nbpr.inspect.ex",
+    "lib/mix/tasks/nbpr.install.ex",
+    "lib/mix/tasks/nbpr.matrix.ex",
+    "lib/mix/tasks/nbpr.new.ex",
+    "lib/mix/tasks/nbpr.releasable.ex",
+    "lib/nbpr/application.ex",
+    "lib/nbpr/inspector.ex",
+    "lib/nbpr/package/daemon.ex",
+    "lib/nbpr/runtime.ex",
+    "mix.exs",
+    "mix.lock"
+  ]
 
   @switches [
     json: :boolean,
@@ -311,7 +343,7 @@ defmodule Mix.Tasks.Nbpr.Matrix do
                 "all #{length(packages)} packages on #{default_target}"
             )
 
-            select(entries, ["nbpr/"], [], default_target)
+            Enum.filter(entries, &(&1.target == default_target))
         end
     end
   end
@@ -348,9 +380,17 @@ defmodule Mix.Tasks.Nbpr.Matrix do
   # key, so it earns smoke coverage. Package directories are handled
   # separately, and everything else — docs, the release workflows, the test
   # workflow — has no bearing on a Buildroot build.
-  defp affects_builds?(path) do
-    String.starts_with?(path, "nbpr/") or path == ".github/workflows/build.yml"
-  end
+  #
+  # `nbpr/` is where the judgement lives. Treating the whole library as
+  # build-affecting fired smoke on version bumps, Renovate dep updates and
+  # README edits, each fanning every package out to the default target for no
+  # build-relevant reason.
+  defp affects_builds?(".github/workflows/build.yml"), do: true
+  defp affects_builds?("nbpr/" <> library_path), do: not inert?(library_path)
+  defp affects_builds?(_path), do: false
+
+  defp inert?("test/" <> _rest), do: true
+  defp inert?(library_path), do: library_path in @inert_library_paths
 
   defp restrict(entries, _key, nil), do: entries
 

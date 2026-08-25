@@ -67,6 +67,36 @@ defmodule Mix.Tasks.Nbpr.MatrixTest do
       assert Matrix.select(entries(), paths, [], "rpi4") == []
     end
 
+    test "library paths no Buildroot build can reach build nothing" do
+      paths = [
+        "nbpr/.formatter.exs",
+        "nbpr/README.md",
+        "nbpr/lib/mix/tasks/nbpr.matrix.ex",
+        "nbpr/lib/mix/tasks/nbpr.new.ex",
+        "nbpr/lib/nbpr/application.ex",
+        "nbpr/lib/nbpr/runtime.ex",
+        "nbpr/mix.exs",
+        "nbpr/mix.lock",
+        "nbpr/test/nbpr/artifact_test.exs"
+      ]
+
+      assert Matrix.select(entries(), paths, [], "rpi4") == []
+    end
+
+    test "an unrecognised library path is assumed to affect builds" do
+      selected = Matrix.select(entries(), ["nbpr/lib/nbpr/something_new.ex"], [], "rpi4")
+
+      assert Enum.uniq(Enum.map(selected, & &1.target)) == ["rpi4"]
+      assert Enum.map(selected, & &1.package) |> Enum.sort() == ["nbpr_flac", "nbpr_jq"]
+    end
+
+    test "an inert library path alongside a build-path one still takes smoke" do
+      selected =
+        Matrix.select(entries(), ["nbpr/mix.exs", "nbpr/lib/nbpr/pack.ex"], [], "rpi4")
+
+      assert Enum.uniq(Enum.map(selected, & &1.target)) == ["rpi4"]
+    end
+
     test "a package qualifying twice over is not built twice" do
       selected =
         Matrix.select(
