@@ -50,7 +50,29 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
   @doc false
   @spec tag_for(Artifact.build_inputs()) :: String.t()
   def tag_for(%{} = inputs) do
-    "#{inputs.package_version}-#{inputs.system_app}-#{inputs.system_version}-#{Artifact.cache_key(inputs)}"
+    sanitise_tag(
+      "#{inputs.package_version}-#{inputs.system_app}-#{inputs.system_version}-#{Artifact.cache_key(inputs)}"
+    )
+  end
+
+  @doc """
+  Rewrites a candidate tag into the OCI reference alphabet.
+
+  The distribution spec restricts tags to `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`,
+  which excludes the `+` that semver build metadata uses — a package whose
+  upstream version has four components (libjpeg-turbo's `3.1.4.1` becomes
+  `3.1.4+1`) carries one into its tag. ghcr.io answers requests for a
+  reference it can't parse with a bare `404 page not found` rather than a
+  registry error, so out-of-alphabet bytes have to be substituted before the
+  request goes out.
+
+  Every disallowed byte becomes `_`, following the convention Docker and ORAS
+  use for build metadata in tags. Both the push (`mix nbpr.publish`) and pull
+  (`plan/2`) sides route through here so they agree on the tag for a build.
+  """
+  @spec sanitise_tag(String.t()) :: String.t()
+  def sanitise_tag(tag) when is_binary(tag) do
+    String.replace(tag, ~r/[^A-Za-z0-9._-]/, "_")
   end
 
   @doc """

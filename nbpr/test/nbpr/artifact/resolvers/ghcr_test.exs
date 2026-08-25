@@ -48,5 +48,35 @@ defmodule NBPR.Artifact.Resolvers.GHCRTest do
       flipped = %{@inputs | build_opts: [oniguruma: false]}
       assert GHCR.tag_for(flipped) != GHCR.tag_for(@inputs)
     end
+
+    test "substitutes the `+` a build-metadata version carries into the tag" do
+      inputs = %{@inputs | package_version: "3.1.4+1"}
+
+      assert GHCR.tag_for(inputs) ==
+               "3.1.4_1-nerves_system_rpi4-2.0.1-#{Artifact.cache_key(inputs)}"
+    end
+
+    test "keys off the unsanitised version, so `3.1.4+1` and `3.1.4_1` differ" do
+      plus = %{@inputs | package_version: "3.1.4+1"}
+      underscore = %{@inputs | package_version: "3.1.4_1"}
+
+      assert GHCR.tag_for(plus) != GHCR.tag_for(underscore)
+    end
+  end
+
+  describe "sanitise_tag/1" do
+    test "leaves a tag already in the OCI alphabet untouched" do
+      tag = "1.7.1-nerves_system_rpi4-2.0.1-cb13a42462c2806d"
+      assert GHCR.sanitise_tag(tag) == tag
+    end
+
+    test "replaces every byte outside the OCI alphabet with `_`" do
+      assert GHCR.sanitise_tag("1.0.0+a/b:c~d") == "1.0.0_a_b_c_d"
+    end
+
+    test "output matches the tag grammar from the distribution spec" do
+      assert GHCR.sanitise_tag("3.1.4+1-nerves_system_bbb-2.30.1-9bef615fb1839352") =~
+               ~r/^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/
+    end
   end
 end

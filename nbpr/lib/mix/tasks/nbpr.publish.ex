@@ -121,7 +121,9 @@ defmodule Mix.Tasks.Nbpr.Publish do
       )
     end
 
-    String.replace_prefix(base, prefix, "")
+    base
+    |> String.replace_prefix(prefix, "")
+    |> GHCR.sanitise_tag()
   end
 
   # ───────── GitHub Releases ─────────
