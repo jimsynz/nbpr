@@ -14,7 +14,11 @@ defmodule NBPR.Buildroot.Defconfig do
   6. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
   7. One line per resolved `build_opt` whose schema declared a `:br_flag`
      extension, formatted as `<br_flag>=<value>` with BR-style boolean,
-     string, and integer encoding.
+     string, and integer encoding. A `:br_flag` naming a list of symbols
+     emits one line each, all carrying the same value — which is what
+     Buildroot's virtual packages need, where enabling a feature means
+     setting both the virtual symbol and a provider from the `choice`
+     beneath it.
 
   The result is a defconfig file ready to be loaded with `make defconfig`
   — but typically we'd write it to `O=<dir>/.config` directly and follow
@@ -114,10 +118,7 @@ defmodule NBPR.Buildroot.Defconfig do
         Enum.map(gating_symbols(br_tree, package.br_package), &"#{&1}=y") ++
         ["BR2_PACKAGE_#{br_symbol(package.br_package)}=y"]
 
-    opt_lines =
-      build_opts
-      |> Enum.map(&render_build_opt(&1, package))
-      |> Enum.reject(&is_nil/1)
+    opt_lines = Enum.flat_map(build_opts, &render_build_opt(&1, package))
 
     [ensure_trailing_newline(base) | nbpr_lines ++ opt_lines]
     |> Enum.join("\n")
@@ -227,11 +228,15 @@ defmodule NBPR.Buildroot.Defconfig do
 
   defp bare_symbol?(condition), do: Regex.match?(~r/^BR2_[A-Z0-9_]+$/, condition)
 
+  # A `:br_flag` may name several symbols. Buildroot's virtual packages need
+  # it: turning on JPEG means `BR2_PACKAGE_JPEG=y` *and* a provider from the
+  # `choice` under it, and leaving the provider to kconfig's default picks a
+  # different one per target.
   defp render_build_opt({opt_name, value}, %NBPR.Package{} = package) do
-    case get_in(package.build_opt_extensions, [opt_name, :br_flag]) do
-      nil -> nil
-      br_flag when is_binary(br_flag) -> "#{br_flag}=#{format_br_value(value)}"
-    end
+    package.build_opt_extensions
+    |> get_in([opt_name, :br_flag])
+    |> List.wrap()
+    |> Enum.map(&"#{&1}=#{format_br_value(value)}")
   end
 
   @doc false

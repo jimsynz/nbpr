@@ -52,12 +52,16 @@ defmodule NBPR.Inspector do
       end)
   end
 
+  defp format_br_flag(nil), do: "(none)"
+  defp format_br_flag(flags) when is_list(flags), do: Enum.join(flags, ", ")
+  defp format_br_flag(flag), do: flag
+
   defp format_build_opt(opt_name, spec, ext) do
     summary = opt_summary(spec)
 
     [
       "  #{opt_name} (#{summary})",
-      "    BR flag: #{Map.get(ext, :br_flag) || "(none)"}",
+      "    BR flag: #{format_br_flag(Map.get(ext, :br_flag))}",
       spec[:doc] && "    #{spec[:doc]}"
     ]
     |> Enum.reject(&is_nil/1)

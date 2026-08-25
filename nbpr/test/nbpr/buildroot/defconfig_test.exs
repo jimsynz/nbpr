@@ -129,6 +129,62 @@ defmodule NBPR.Buildroot.DefconfigTest do
       refute out =~ "docs_only"
     end
 
+    # Buildroot models JPEG as a virtual package: `BR2_PACKAGE_JPEG` plus a
+    # provider from the `choice` beneath it. Leaving the provider to kconfig's
+    # default picks turbo only where SIMD is supported, so an ARMv6 target
+    # would silently build IJG libjpeg — a different soname.
+    test "a :br_flag naming several symbols emits a line for each", %{tmp: tmp} do
+      sys_defconfig = Path.join(tmp, "nerves_defconfig")
+      File.write!(sys_defconfig, "BR2_arm=y\n")
+
+      package = %NBPR.Package{
+        name: :imagemagick,
+        version: 1,
+        module: NBPR.Imagemagick,
+        description: "x",
+        br_package: "imagemagick",
+        build_opts: [],
+        build_opt_extensions: %{
+          jpeg: %{br_flag: ["BR2_PACKAGE_JPEG", "BR2_PACKAGE_JPEG_TURBO"]}
+        },
+        daemons: [],
+        kernel_modules: [],
+        artifact_sites: []
+      }
+
+      out =
+        Defconfig.render!(package, sys_defconfig, top_level_tree(tmp, "imagemagick"), jpeg: true)
+
+      assert out =~ ~r/^BR2_PACKAGE_JPEG=y$/m
+      assert out =~ ~r/^BR2_PACKAGE_JPEG_TURBO=y$/m
+    end
+
+    test "a :br_flag list carries a false value to every symbol", %{tmp: tmp} do
+      sys_defconfig = Path.join(tmp, "nerves_defconfig")
+      File.write!(sys_defconfig, "BR2_arm=y\n")
+
+      package = %NBPR.Package{
+        name: :imagemagick,
+        version: 1,
+        module: NBPR.Imagemagick,
+        description: "x",
+        br_package: "imagemagick",
+        build_opts: [],
+        build_opt_extensions: %{
+          jpeg: %{br_flag: ["BR2_PACKAGE_JPEG", "BR2_PACKAGE_JPEG_TURBO"]}
+        },
+        daemons: [],
+        kernel_modules: [],
+        artifact_sites: []
+      }
+
+      out =
+        Defconfig.render!(package, sys_defconfig, top_level_tree(tmp, "imagemagick"), jpeg: false)
+
+      assert out =~ ~r/^BR2_PACKAGE_JPEG=n$/m
+      assert out =~ ~r/^BR2_PACKAGE_JPEG_TURBO=n$/m
+    end
+
     test "preserves and follows the system defconfig contents", %{tmp: tmp} do
       sys_defconfig = Path.join(tmp, "nerves_defconfig")
       content = "BR2_arm=y\nBR2_aarch64=y\nBR2_TARGET_ROOTFS_SQUASHFS=y\n"
