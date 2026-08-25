@@ -263,6 +263,62 @@
     },
     {
       "customType": "regex",
+      "description": "nbpr_libffi @version \u2192 Buildroot's `LIBFFI_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libffi/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libffi",
+      "packageNameTemplate": "libffi",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_pcre2 @version \u2192 Buildroot's `PCRE2_VERSION` line at the pinned BR_REF. Buildroot ships two-component versions here (e.g. `10.47`); the package's `normalise_version/1` pads `@version` to Hex's three-component shape at load time.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_pcre2/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "pcre2",
+      "packageNameTemplate": "pcre2",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_expat @version \u2192 Buildroot's `EXPAT_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_expat/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "expat",
+      "packageNameTemplate": "expat",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libvips @version \u2192 Buildroot's `LIBVIPS_VERSION` line at the pinned BR_REF. libglib2, the heaviest package in this one's dependency chain, deliberately has no manager: its `.mk` computes `LIBGLIB2_VERSION` from `LIBGLIB2_VERSION_MAJOR`, which the buildroot-package datasource's regex can't resolve.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libvips/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libvips",
+      "packageNameTemplate": "libvips",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
       "managerFilePatterns": [
         "/^renovate\\.json$/"
