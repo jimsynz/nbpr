@@ -211,7 +211,8 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert mix_exs =~ "Fixturepkg does the thing well."
     end
 
-    test "normalises a leading-zero BR version into valid semver", %{tmp: tmp} do
+    test "records the BR version verbatim and coerces it at project-eval time",
+         %{tmp: tmp} do
       cache_dir =
         Path.join([System.get_env("NERVES_ARTIFACTS_DIR"), "nbpr", "buildroot", @br_version])
 
@@ -234,7 +235,14 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       end)
 
       mix_exs = File.read!(Path.join(tmp, "packages/nbpr_lvm2/mix.exs"))
-      assert mix_exs =~ ~s|@version "2.3.31"|
+
+      # Renovate rewrites `@version` with Buildroot's literal, so that's what
+      # the generator commits to. Everything downstream reads the coerced form,
+      # which the generated `normalise_version/1` derives — evaluated here so
+      # the emitted copy is held to the same rules as `NBPR.Version`.
+      assert mix_exs =~ ~s|@version "2.03.31"|
+      assert project_version(mix_exs, "Lvm2Fixture") == "2.3.31"
+      assert NBPR.Version.hex_version("2.03.31") == "2.3.31"
     end
 
     test "bakes BR-derived data into the lib module", %{tmp: tmp} do
@@ -453,6 +461,25 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       def project, do: [app: :nbpr_#{short_name}, version: @version]
     end
     """)
+  end
+
+  # Evaluates a generated `mix.exs` and reads back the version its `project/0`
+  # actually reports. Renamed to a unique module first, since the fixture name
+  # would otherwise be redefined across runs.
+  defp project_version(mix_exs, module_suffix) do
+    module = Module.concat([:"NBPRGenerated#{module_suffix}"])
+
+    source =
+      String.replace(mix_exs, ~r/^defmodule \S+ do$/m, "defmodule #{inspect(module)} do",
+        global: false
+      )
+
+    # `with_diagnostics` collects the generated module's warnings (its
+    # `nbpr_dep/2` clauses are unreachable under a plain eval) rather than
+    # printing them through the test run.
+    Code.with_diagnostics(fn -> Code.eval_string(source) end)
+
+    module.project() |> Keyword.fetch!(:version)
   end
 
   defp seed_spdx_cache!(artifacts) do

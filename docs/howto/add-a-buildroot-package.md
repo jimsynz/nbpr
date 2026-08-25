@@ -236,10 +236,15 @@ You don't tag or publish manually.
   upstream `_DEPENDENCIES` line aren't resolved statically. Same
   workaround as above if the dep is mandatory.
 
-- **Buildroot versions like `2.91`** aren't valid Hex semver. The
-  generator pads to `2.91.0` automatically. Subsequent nbpr-side
-  rebuilds of the same upstream version go in the patch position
-  (`2.91.1`, `2.91.2`, …).
+- **Buildroot versions aren't valid Hex semver.** `2.91` is too short,
+  `3.1.4.1` too long, `7.1.2-26` carries a patchlevel. The generator
+  writes Buildroot's literal into `@version` and generates the coercion
+  that derives the Hex version from it, so there's nothing to do by hand.
+  Read [Package versioning](../reference/versioning.md) before reaching
+  for a version by hand — in particular, a package whose upstream version
+  already fills all three numeric positions has no free slot for an
+  nbpr-side rebuild, and the padded `2.91.1` case is the exception rather
+  than the rule.
 
 - **Buildroot package names with hyphens** (e.g. `kernel-modules`) map
   to underscored module names (`NBPR.KernelModules`) and underscored

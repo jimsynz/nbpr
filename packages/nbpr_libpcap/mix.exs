@@ -6,7 +6,7 @@ defmodule Nbpr.Libpcap.MixProject do
   def project do
     [
       app: :nbpr_libpcap,
-      version: @version,
+      version: normalise_version(@version),
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -49,4 +49,26 @@ defmodule Nbpr.Libpcap.MixProject do
 
   defp nbpr_dep_path(:nbpr), do: "../../nbpr"
   defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
+
+  # Renovate writes Buildroot's upstream version straight into @version,
+  # and Buildroot's versions aren't semver: they can be short (`2.92`),
+  # carry a fourth component (`3.1.4.1`) or a patchlevel suffix
+  # (`7.1.2-26`). hex.pm takes exactly MAJOR.MINOR.PATCH — it rejects
+  # build metadata outright, and a pre-release is invisible to a `~>`
+  # requirement — so pad what's short and drop a trailing numeric
+  # packaging component. `NBPR.Version` documents the rules and the cost.
+  defp normalise_version(version) do
+    upstream = ~r/^0*(?<major>\d+)(?:\.0*(?<minor>\d+))?(?:\.0*(?<patch>\d+))?(?:[.-]\d+)*$/
+
+    case Regex.named_captures(upstream, version) do
+      %{"major" => major, "minor" => minor, "patch" => patch} ->
+        Enum.map_join([major, minor, patch], ".", fn
+          "" -> "0"
+          segment -> segment
+        end)
+
+      nil ->
+        version
+    end
+  end
 end

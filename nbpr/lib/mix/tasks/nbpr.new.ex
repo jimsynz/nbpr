@@ -557,20 +557,7 @@ defmodule Mix.Tasks.Nbpr.New do
       defp nbpr_dep_path(:nbpr), do: "../../nbpr"
       defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
 
-      # Renovate bumps @version straight to Buildroot's upstream value, which
-      # doesn't always match Hex's three-component shape: it can be
-      # two-component (e.g. `2.92`), which we pad, or four (e.g. libjpeg-turbo's
-      # `3.1.4.1`, a post-release fix tagged alongside `3.1.4`), which becomes
-      # build metadata. `+d` keeps the upstream string recoverable and orders
-      # between `3.1.3` and `3.1.5`; a `-d` pre-release would sort before the
-      # `3.1.4` it supersedes.
-      defp normalise_version(version) do
-        case String.split(version, ".") do
-          [major, minor] -> "\#{major}.\#{minor}.0"
-          [major, minor, patch, extra] -> "\#{major}.\#{minor}.\#{patch}+\#{extra}"
-          _ -> version
-        end
-      end
+    #{NBPR.Version.normalise_version_source()}
     end
     """
   end
@@ -602,28 +589,11 @@ defmodule Mix.Tasks.Nbpr.New do
     links = %{br_package_name => homepage, "GitHub" => "https://github.com/#{github_repo}"}
 
     description = pkg.description || "TODO: short description for nbpr_#{br_package_name}"
-    {normalise_version(pkg.version), description, inspect(links), pkg.licences}
-  end
 
-  # Coerces a Buildroot version into valid Hex semver: strips leading zeros
-  # from each numeric segment (`2.03.31` → `2.3.31`, rejected by Mix
-  # otherwise) and pads to three components (`2.91` → `2.91.0`).
-  defp normalise_version(version) do
-    segments = version |> String.split(".") |> Enum.map(&strip_leading_zeros/1)
-
-    case segments do
-      [major] -> "#{major}.0.0"
-      [major, minor] -> "#{major}.#{minor}.0"
-      _ -> Enum.join(segments, ".")
-    end
-  end
-
-  defp strip_leading_zeros(segment) do
-    if segment =~ ~r/^\d+$/ do
-      String.to_integer(segment) |> Integer.to_string()
-    else
-      segment
-    end
+    # `@version` carries Buildroot's version verbatim, which is what Renovate
+    # will keep writing there. The generated `normalise_version/1` coerces it
+    # to Hex's shape at project-eval time, so the two never disagree.
+    {pkg.version, description, inspect(links), pkg.licences}
   end
 
   defp package_module_ex(module, br_package_name, nil, github_repo) do
