@@ -14,7 +14,11 @@ defmodule NBPR.Buildroot.Defconfig do
   6. `BR2_PACKAGE_<UPPER_BR_NAME>=y` to enable the target package.
   7. One line per resolved `build_opt` whose schema declared a `:br_flag`
      extension, formatted as `<br_flag>=<value>` with BR-style boolean,
-     string, and integer encoding.
+     string, and integer encoding. A `:br_flag` naming a list of symbols
+     emits one line each, all carrying the same value — which is what
+     Buildroot's virtual packages need, where enabling a feature means
+     setting both the virtual symbol and a provider from the `choice`
+     beneath it.
 
   The result is a defconfig file ready to be loaded with `make defconfig`
   — but typically we'd write it to `O=<dir>/.config` directly and follow
@@ -35,11 +39,24 @@ defmodule NBPR.Buildroot.Defconfig do
 
   The gating symbols can't be derived from the parent directory's name —
   `package/x11r7/` is gated by `BR2_PACKAGE_XORG7`, not `BR2_PACKAGE_X11R7`,
-  and `package/opengl/` sources its children with no gate at all. So they're
-  read from the tree: find the line in the parent's `Config.in` that sources
-  this package's `Config.in`, and take the `if` conditions enclosing it,
-  outermost first. Nesting is real — the modular Xorg drivers sit inside
-  `if BR2_PACKAGE_XORG7` *and* `if BR2_PACKAGE_XSERVER_XORG_SERVER_MODULAR`.
+  and `package/opengl/` sources its children with no gate at all. Nor can the
+  directory be trusted to hold the declaration: `package/jpeg-turbo/` ships
+  only a `.mk` and a `Config.in.options`, while `BR2_PACKAGE_JPEG_TURBO`
+  itself is declared inside the `choice` in `package/jpeg/Config.in`, under
+  `if BR2_PACKAGE_JPEG`.
+
+  So the gates are read from the tree, starting from wherever the symbol is
+  actually declared:
+
+  1. the `if` blocks wrapping the `config` stanza in its own file, then
+  2. the `if` blocks wrapping each `source` line on the chain from that file
+     up to `package/Config.in`.
+
+  Outermost first. Both halves are real: the modular Xorg drivers sit inside
+  `if BR2_PACKAGE_XORG7` *and* `if BR2_PACKAGE_XSERVER_XORG_SERVER_MODULAR`
+  by inclusion, while `jpeg-turbo` is gated by its declaring stanza alone.
+  `choice`/`endchoice` is not a gate — it groups alternatives, and setting a
+  member to `y` is how you pick one.
 
   Only bare symbol conditions are emitted. A compound condition (Buildroot
   has one, an `||` over two `freescale-imx` platform choices) is a choice
@@ -101,10 +118,7 @@ defmodule NBPR.Buildroot.Defconfig do
         Enum.map(gating_symbols(br_tree, package.br_package), &"#{&1}=y") ++
         ["BR2_PACKAGE_#{br_symbol(package.br_package)}=y"]
 
-    opt_lines =
-      build_opts
-      |> Enum.map(&render_build_opt(&1, package))
-      |> Enum.reject(&is_nil/1)
+    opt_lines = Enum.flat_map(build_opts, &render_build_opt(&1, package))
 
     [ensure_trailing_newline(base) | nbpr_lines ++ opt_lines]
     |> Enum.join("\n")
@@ -115,62 +129,91 @@ defmodule NBPR.Buildroot.Defconfig do
   Returns the kconfig symbols that must be `y` for `br_package` to be
   selectable, outermost first.
 
-  Empty for a top-level `package/<name>/` package, and for a nested one whose
-  `Config.in` the parent sources unconditionally.
+  Empty for a package whose symbol is declared at the top level of its own
+  `Config.in` and sourced unconditionally.
   """
   @spec gating_symbols(Path.t(), String.t()) :: [String.t()]
   def gating_symbols(br_tree, br_package) when is_binary(br_tree) and is_binary(br_package) do
-    if File.dir?(Path.join([br_tree, "package", br_package])) do
+    symbol = "BR2_PACKAGE_" <> br_symbol(br_package)
+
+    case declaring_config(br_tree, br_package, symbol) do
+      nil -> []
+      config -> declaration_symbols(config, symbol) ++ source_chain_symbols(config, br_tree)
+    end
+  end
+
+  # A package's symbol usually lives in its own directory's `Config.in`, but
+  # not always: `package/jpeg-turbo/` ships only a `.mk` and
+  # `Config.in.options`, with `BR2_PACKAGE_JPEG_TURBO` declared inside the
+  # `choice` in `package/jpeg/Config.in`. So the directory is a hint, not the
+  # answer — fall back to whichever `Config.in` actually declares the symbol.
+  defp declaring_config(br_tree, br_package, symbol) do
+    own = Path.join([br_tree, "package", br_package, "Config.in"])
+    nested = Path.join([br_tree, "package", "*", br_package, "Config.in"])
+
+    ([own] ++
+       Path.wildcard(nested) ++ Path.wildcard(Path.join([br_tree, "package", "*", "Config.in"])))
+    |> Enum.find(&declares?(&1, symbol))
+  end
+
+  defp declares?(config, symbol) do
+    case File.read(config) do
+      {:ok, contents} -> Regex.match?(~r/^\s*config\s+#{Regex.escape(symbol)}\s*$/m, contents)
+      {:error, _} -> false
+    end
+  end
+
+  # The `if` blocks wrapping the `config` stanza inside its own file.
+  # `choice`/`endchoice` are ignored: they group alternatives without gating
+  # them, and setting a member to `y` is how you pick one.
+  defp declaration_symbols(config, symbol) do
+    scan_to(config, ~r/^\s*config\s+#{Regex.escape(symbol)}\s*$/)
+  end
+
+  # Walks up the `source` chain from `config` to `package/Config.in`,
+  # collecting the `if` blocks wrapping each inclusion. Top-level packages
+  # stop here by construction: `package/Config.in` has `if` blocks of its own,
+  # but those already build, and re-deriving their gates would change what
+  # every existing package's build sees for no benefit.
+  defp source_chain_symbols(config, br_tree) do
+    parent = config |> Path.dirname() |> Path.dirname() |> Path.join("Config.in")
+    top_level = Path.join([br_tree, "package", "Config.in"])
+
+    if parent == top_level or not File.regular?(parent) do
       []
     else
-      [br_tree, "package", "*", br_package, "Config.in"]
-      |> Path.join()
-      |> Path.wildcard()
-      |> List.first()
-      |> enclosing_symbols(br_tree)
+      source_line = ~s(source "#{Path.relative_to(config, br_tree)}")
+      gates = scan_to(parent, ~r/^\s*#{Regex.escape(source_line)}\s*$/)
+
+      source_chain_symbols(parent, br_tree) ++ gates
     end
   end
 
-  defp enclosing_symbols(nil, _br_tree), do: []
-
-  defp enclosing_symbols(child_config, br_tree) do
-    parent_config =
-      child_config
-      |> Path.dirname()
-      |> Path.dirname()
-      |> Path.join("Config.in")
-
-    source_line = ~s(source "#{Path.relative_to(child_config, br_tree)}")
-
-    case File.read(parent_config) do
-      {:ok, contents} ->
-        contents
-        |> String.split("\n")
-        |> scan_for_source(source_line, [])
-
-      {:error, _} ->
-        []
+  defp scan_to(config, target) do
+    case File.read(config) do
+      {:ok, contents} -> contents |> String.split("\n") |> scan_for_target(target, [])
+      {:error, _} -> []
     end
   end
 
-  # Walks the parent `Config.in` tracking the `if`/`endif` nesting, and stops
-  # at `source_line`. Anything but a bare symbol is dropped: a compound
-  # condition isn't something we can satisfy by setting one line.
-  defp scan_for_source([], _source_line, _stack), do: []
+  # Walks a `Config.in` tracking the `if`/`endif` nesting, and stops at the
+  # first line matching `target`. Anything but a bare symbol is dropped: a
+  # compound condition isn't something we can satisfy by setting one line.
+  defp scan_for_target([], _target, _stack), do: []
 
-  defp scan_for_source([line | rest], source_line, stack) do
+  defp scan_for_target([line | rest], target, stack) do
     cond do
-      String.trim(line) == source_line ->
+      Regex.match?(target, line) ->
         stack |> Enum.reverse() |> Enum.filter(&bare_symbol?/1)
 
       condition = if_condition(line) ->
-        scan_for_source(rest, source_line, [condition | stack])
+        scan_for_target(rest, target, [condition | stack])
 
       endif?(line) ->
-        scan_for_source(rest, source_line, Enum.drop(stack, 1))
+        scan_for_target(rest, target, Enum.drop(stack, 1))
 
       true ->
-        scan_for_source(rest, source_line, stack)
+        scan_for_target(rest, target, stack)
     end
   end
 
@@ -185,11 +228,15 @@ defmodule NBPR.Buildroot.Defconfig do
 
   defp bare_symbol?(condition), do: Regex.match?(~r/^BR2_[A-Z0-9_]+$/, condition)
 
+  # A `:br_flag` may name several symbols. Buildroot's virtual packages need
+  # it: turning on JPEG means `BR2_PACKAGE_JPEG=y` *and* a provider from the
+  # `choice` under it, and leaving the provider to kconfig's default picks a
+  # different one per target.
   defp render_build_opt({opt_name, value}, %NBPR.Package{} = package) do
-    case get_in(package.build_opt_extensions, [opt_name, :br_flag]) do
-      nil -> nil
-      br_flag when is_binary(br_flag) -> "#{br_flag}=#{format_br_value(value)}"
-    end
+    package.build_opt_extensions
+    |> get_in([opt_name, :br_flag])
+    |> List.wrap()
+    |> Enum.map(&"#{&1}=#{format_br_value(value)}")
   end
 
   @doc false

@@ -558,10 +558,16 @@ defmodule Mix.Tasks.Nbpr.New do
       defp nbpr_dep_path(name) when is_atom(name), do: "../" <> Atom.to_string(name)
 
       # Renovate bumps @version straight to Buildroot's upstream value, which
-      # can be two-component (e.g. `2.92`); pad to Hex's three-component shape.
+      # doesn't always match Hex's three-component shape: it can be
+      # two-component (e.g. `2.92`), which we pad, or four (e.g. libjpeg-turbo's
+      # `3.1.4.1`, a post-release fix tagged alongside `3.1.4`), which becomes
+      # build metadata. `+d` keeps the upstream string recoverable and orders
+      # between `3.1.3` and `3.1.5`; a `-d` pre-release would sort before the
+      # `3.1.4` it supersedes.
       defp normalise_version(version) do
         case String.split(version, ".") do
           [major, minor] -> "\#{major}.\#{minor}.0"
+          [major, minor, patch, extra] -> "\#{major}.\#{minor}.\#{patch}+\#{extra}"
           _ -> version
         end
       end

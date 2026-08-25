@@ -85,7 +85,7 @@ defmodule NBPR.BrPackage do
                        type: :keyword_list,
                        default: [],
                        doc:
-                         "Build-time options schema (NimbleOptions plus per-option `:br_flag`)."
+                         "Build-time options schema (NimbleOptions plus per-option `:br_flag`). A `:br_flag` is a kconfig symbol, or a list of them when one option has to set several — Buildroot's virtual packages need that, since enabling JPEG means `BR2_PACKAGE_JPEG` *and* a provider from the `choice` beneath it."
                      ],
                      daemons: [
                        type: :keyword_list,
