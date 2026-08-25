@@ -139,21 +139,24 @@ defmodule Mix.Tasks.Nbpr.Releasable do
     end)
   end
 
+  # A package's `@version` holds the raw upstream Buildroot value (Renovate
+  # writes it verbatim), while the package publishes — and is tagged — under
+  # the coerced form its own `mix.exs` derives. Both go through
+  # `NBPR.Version.hex_version/1`, so the release tag and the Hex-version poll
+  # match what actually ships. Validating here rather than letting hex.pm do it
+  # turns a mid-release API rejection into a named failure before the tag is
+  # even cut.
   defp extract_version!(contents, mix_path) do
-    case Regex.run(~r/@version\s+"([^"]+)"/, contents) do
-      [_, version] -> normalise_version(version)
-      _ -> Mix.raise("no @version declaration in #{mix_path}")
-    end
-  end
+    with [_, upstream] <- Regex.run(~r/@version\s+"([^"]+)"/, contents),
+         version = NBPR.Version.hex_version(upstream),
+         :ok <- NBPR.Version.validate(version) do
+      version
+    else
+      nil ->
+        Mix.raise("no @version declaration in #{mix_path}")
 
-  # Mirrors the per-package `mix.exs` normalisation: a package's `@version` may
-  # be a bare upstream value (e.g. Renovate writing `2.92`), but the package
-  # publishes — and is tagged — under the padded three-component form. Pad here
-  # so the release tag and the Hex-version poll match what actually ships.
-  defp normalise_version(version) do
-    case String.split(version, ".") do
-      [major, minor] -> "#{major}.#{minor}.0"
-      _ -> version
+      {:error, reason} ->
+        Mix.raise("#{mix_path} cannot be published to hex.pm: #{reason}")
     end
   end
 
