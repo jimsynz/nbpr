@@ -175,7 +175,12 @@ defmodule NBPR.Buildroot.Backend.Shell do
   # lands as a bare token in every target compile/link line (`ld: cannot find
   # gnu`). The container backend forwards only the explicit build env and never
   # sees it; unset it here so the native path matches.
-  @scrubbed_env [{"TARGET_ABI", nil}]
+  # Nerves also exports CPPFLAGS and LDFLAGS with the target sysroot. Buildroot
+  # computes its own host and target flags, but does not unexport these two;
+  # inheriting them makes host packages compile/link against target libraries
+  # and headers. System.cmd's :env merges with the caller's environment, so
+  # explicitly unset them for every make invocation.
+  @scrubbed_env [{"TARGET_ABI", nil}, {"CPPFLAGS", nil}, {"LDFLAGS", nil}]
 
   defp run_make!(cwd, output_dir, env, targets) do
     args = Build.make_args(output_dir, targets)
