@@ -35,6 +35,8 @@ defmodule NBPR.Buildroot.Builder do
   """
   @spec build!(NBPR.Package.t(), NBPR.Artifact.build_inputs(), Path.t()) :: Path.t()
   def build!(%NBPR.Package{} = pkg, %{} = inputs, output_dir) when is_binary(output_dir) do
+    # Validate opt-in publishing before spending time on a source build.
+    NBPR.Artifact.Registry.publish_site!()
     File.mkdir_p!(output_dir)
 
     Mix.shell().info("[nbpr] source-building #{inputs.package_name} #{inputs.package_version}")
@@ -65,7 +67,9 @@ defmodule NBPR.Buildroot.Builder do
       )
 
     sources = Harvest.harvest!(harvest_dir, pkg.br_package)
-    Pack.pack!(inputs, sources, output_dir)
+    tarball = Pack.pack!(inputs, sources, output_dir)
+    NBPR.Artifact.Registry.publish_after_build!(inputs, tarball)
+    tarball
   end
 
   @doc """

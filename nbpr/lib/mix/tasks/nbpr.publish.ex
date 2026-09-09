@@ -3,7 +3,8 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
   @moduledoc """
   Uploads a tarball produced by `mix nbpr.pack` to the first supported backend
-  declared in the package's `artifact_sites:`.
+  declared in the package's `artifact_sites:`. When `config :nbpr, :registry`
+  is set, that project registry is used first.
 
       mix nbpr.publish <Module> <path-to-tarball>
 
@@ -66,7 +67,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
   defp parse_positional!(_), do: Mix.raise("usage: mix nbpr.publish <Module> <tarball>")
 
   defp pick_site(pkg) do
-    Enum.find(pkg.artifact_sites, fn
+    Enum.find(NBPR.Artifact.Registry.sites(pkg.artifact_sites), fn
       {:ghcr, _} -> true
       {:github_releases, _} -> true
       _ -> false

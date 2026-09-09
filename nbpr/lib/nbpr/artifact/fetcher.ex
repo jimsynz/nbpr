@@ -27,6 +27,7 @@ defmodule NBPR.Artifact.Fetcher do
   @spec fetch!(Artifact.build_inputs(), [Package.artifact_site()], keyword()) :: Path.t()
   def fetch!(inputs, sites, opts \\ []) do
     resolvers = Keyword.get(opts, :resolvers, @default_resolvers)
+    sites = NBPR.Artifact.Registry.sites(sites)
     plans = build_plans(sites, inputs, resolvers)
 
     if plans == [] do

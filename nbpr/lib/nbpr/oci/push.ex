@@ -40,7 +40,7 @@ defmodule NBPR.OCI.Push do
   def push!(image, tag, tarball_path) do
     HTTP.start_apps!()
 
-    {username, password} = credentials!()
+    {username, password} = NBPR.OCI.Credentials.ghcr!()
     bearer = fetch_push_token!(image, username, password)
 
     layer_data = File.read!(tarball_path)
@@ -94,17 +94,6 @@ defmodule NBPR.OCI.Push do
         "org.opencontainers.image.created" => DateTime.utc_now() |> DateTime.to_iso8601()
       }
     }
-  end
-
-  defp credentials! do
-    username = System.get_env("GHCR_USERNAME") || "oauth"
-
-    token =
-      System.get_env("GHCR_TOKEN") ||
-        System.get_env("GITHUB_TOKEN") ||
-        raise "GHCR_TOKEN or GITHUB_TOKEN env var required to push to ghcr.io"
-
-    {username, token}
   end
 
   defp fetch_push_token!(image, username, password) do
