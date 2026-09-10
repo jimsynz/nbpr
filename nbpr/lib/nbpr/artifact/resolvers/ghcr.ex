@@ -4,12 +4,13 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
 
   Each nbpr package maps to one OCI image at `ghcr.io/<owner>/<package_name>`.
   Build variants (package version, system, system-version, build-opts) become
-  tags. Anonymous pull works for packages flipped to public visibility — the
-  resolver does not authenticate.
+  tags. Pulls authenticate with `GHCR_TOKEN` (or `GITHUB_TOKEN`) when set,
+  using `GHCR_USERNAME` (default `"oauth"`). Without credentials, pulls are
+  anonymous and require public package visibility.
 
   Wire flow per fetch:
 
-  1. `GET /token?service=ghcr.io&scope=repository:<image>:pull` → anonymous JWT
+  1. `GET /token?service=ghcr.io&scope=repository:<image>:pull` → pull JWT
   2. `GET /v2/<image>/manifests/<tag>` (Bearer + Accept manifest media type) → manifest JSON
   3. Pick the first layer whose mediaType matches `application/vnd.nbpr.tarball.v1+tar+gzip`
   4. `GET /v2/<image>/blobs/<digest>` (Bearer, autoredirect) → bytes streamed to disk
@@ -76,12 +77,12 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
   end
 
   @doc """
-  Checks anonymously whether `<image>:<tag>` already has a manifest published.
+  Checks whether `<image>:<tag>` already has a manifest published.
 
   Returns `{:ok, true}` for HTTP 200, `{:ok, false}` for HTTP 404, and
   `{:error, reason}` for other failures (auth, network, malformed JSON).
-  Uses the same anonymous-pull token flow as `get/2`, so packages need
-  `public` visibility on GHCR for this to work without credentials.
+  Uses the same token flow as `get/2`, including credentials when configured.
+  Packages need public visibility when no credentials are supplied.
 
   Used by `mix nbpr.publish` to short-circuit when the artefact's tag is
   already published — NBPR's cache-key model treats published tarballs as
@@ -121,7 +122,12 @@ defmodule NBPR.Artifact.Resolvers.GHCR do
       "https://ghcr.io/token?service=ghcr.io&scope=repository:#{image}:pull"
       |> String.to_charlist()
 
-    case :httpc.request(:get, {url, []}, [autoredirect: true], []) do
+    case :httpc.request(
+           :get,
+           {url, NBPR.OCI.Credentials.pull_headers()},
+           [autoredirect: false],
+           []
+         ) do
       {:ok, {{_, 200, _}, _, body}} ->
         case decode_json(body) do
           {:ok, %{"token" => token}} -> {:ok, token}

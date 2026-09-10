@@ -34,6 +34,27 @@ defmodule NBPR.Artifact.FetcherTest do
     def get(%{reason: reason}, _dest_path), do: {:error, reason}
   end
 
+  defmodule ProjectResolver do
+    @behaviour NBPR.Artifact.Resolver
+
+    def plan({:ghcr, "ghcr.io/project"}, inputs) do
+      {__MODULE__, inputs}
+    end
+
+    def plan(_, _), do: nil
+
+    def get(inputs, dest) do
+      send(self(), {:project_lookup, inputs})
+
+      if inputs.build_opts == [missing: true] do
+        {:error, :not_found}
+      else
+        File.write!(dest, "project cache")
+        :ok
+      end
+    end
+  end
+
   @inputs %{
     package_name: "nbpr_jq",
     package_version: "0.1.0",
@@ -43,6 +64,16 @@ defmodule NBPR.Artifact.FetcherTest do
   }
 
   setup do
+    registry = Application.fetch_env(:nbpr, :registry)
+    Application.delete_env(:nbpr, :registry)
+
+    on_exit(fn ->
+      case registry do
+        {:ok, value} -> Application.put_env(:nbpr, :registry, value)
+        :error -> Application.delete_env(:nbpr, :registry)
+      end
+    end)
+
     artifacts_dir =
       Path.join(System.tmp_dir!(), "nbpr_fetcher_test_#{System.unique_integer([:positive])}")
 
@@ -57,6 +88,31 @@ defmodule NBPR.Artifact.FetcherTest do
   end
 
   describe "fetch!/3" do
+    test "tries the configured project registry before upstream sites" do
+      Application.put_env(:nbpr, :registry, "ghcr.io/project")
+
+      dest =
+        Fetcher.fetch!(@inputs, [{:writing, "upstream"}],
+          resolvers: [ProjectResolver, WritingResolver]
+        )
+
+      assert File.read!(dest) == "project cache"
+      assert_received {:project_lookup, @inputs}
+    end
+
+    test "falls back to package sites when the project cache misses" do
+      Application.put_env(:nbpr, :registry, "ghcr.io/project")
+      inputs = %{@inputs | build_opts: [missing: true]}
+
+      dest =
+        Fetcher.fetch!(inputs, [{:writing, "upstream"}],
+          resolvers: [ProjectResolver, WritingResolver]
+        )
+
+      assert File.read!(dest) == "upstream"
+      assert_received {:project_lookup, ^inputs}
+    end
+
     test "writes to the canonical download_path on success" do
       dest =
         Fetcher.fetch!(@inputs, [{:writing, "hello"}], resolvers: [WritingResolver])

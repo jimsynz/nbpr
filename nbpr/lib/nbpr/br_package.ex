@@ -111,10 +111,10 @@ defmodule NBPR.BrPackage do
                          "C libraries this package cannot be built against. Combinations involving them are dropped from the CI prebuild matrix, and `mix nbpr.build` refuses them with an explanation rather than letting Buildroot fail deep in a compile. For upstream code that genuinely doesn't build on a libc — not for something we could fix by carrying a patch."
                      ],
                      artifact_sites: [
-                       type: {:list, {:tuple, [{:in, [:github_releases, :ghcr]}, :string]}},
+                       type: {:list, {:tuple, [{:in, [:github_releases, :ghcr, :oci]}, :string]}},
                        default: [],
                        doc:
-                         "Where to fetch prebuilt artefact tarballs. Supports `{:ghcr, \"ghcr.io/<owner>\"}` and `{:github_releases, \"<owner>/<repo>\"}`. Sites are tried in order; first one to resolve and download wins."
+                         "Where to fetch prebuilt artefact tarballs. Supports `{:oci, \"registry.example.com/<owner>\"}`, as well as `{:ghcr, \"ghcr.io/<owner>\"}` and `{:github_releases, \"<owner>/<repo>\"}`. Sites are tried in order; first one to resolve and download wins."
                      ]
                    )
 

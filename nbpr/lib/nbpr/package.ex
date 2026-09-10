@@ -9,7 +9,7 @@ defmodule NBPR.Package do
 
   alias NBPR.Package.Daemon
 
-  @type artifact_site :: {:github_releases, String.t()} | {:ghcr, String.t()}
+  @type artifact_site :: {:github_releases, String.t()} | {:ghcr, String.t()} | {:oci, String.t()}
 
   @typedoc """
   The C library a Nerves system's toolchain targets. Nerves systems are
