@@ -40,9 +40,29 @@ defmodule NBPR.Artifact.RegistryTest do
     assert Registry.sites([upstream, project]) == [project, upstream]
   end
 
-  test "rejects unsupported registry configuration" do
-    Application.put_env(:nbpr, :registry, "registry.example.com/cache")
-    assert_raise ArgumentError, ~r/registry must be/, fn -> Registry.sites([]) end
+  test "supports a self-hosted Forgejo registry" do
+    Application.put_env(:nbpr, :registry, "forgejo.example.com/org/firmware")
+    assert Registry.sites([]) == [{:oci, "forgejo.example.com/org/firmware"}]
+  end
+
+  test "publishes to Forgejo using the same tag and package as the pull plan" do
+    prefix = "forgejo.example.com/org/firmware"
+    Application.put_env(:nbpr, :registry, prefix)
+    Application.put_env(:nbpr, :publish_after_build, true)
+    {_, plan} = NBPR.Artifact.Resolvers.OCI.plan({:oci, prefix}, @inputs)
+
+    Registry.publish_after_build!(@inputs, "built.tar.gz",
+      push: fn dest, package, tag, tarball ->
+        assert dest == plan.prefix
+        assert package == plan.package
+        assert tag == plan.tag
+        assert tarball == "built.tar.gz"
+        send(self(), :forgejo_published)
+        :ok
+      end
+    )
+
+    assert_received :forgejo_published
   end
 
   test "rejects malformed namespace prefixes" do

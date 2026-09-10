@@ -16,6 +16,7 @@ defmodule NBPR.Artifact.Fetcher do
 
   @default_resolvers [
     NBPR.Artifact.Resolvers.GHCR,
+    NBPR.Artifact.Resolvers.OCI,
     NBPR.Artifact.Resolvers.GitHubReleases
   ]
 

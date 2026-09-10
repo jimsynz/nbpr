@@ -14,8 +14,8 @@ defmodule Mix.Tasks.Nbpr.Build do
   ## Cache short-circuit
 
   Before kicking off a fresh source-build, the task checks the project's
-  configured registry first, then the package's GHCR
-  `{:ghcr, "ghcr.io/<owner>"}` sites for the cache-key-derived tag.
+  configured registry first, then the package's declared OCI/GHCR sites
+  for the cache-key-derived tag.
   On a hit it downloads the prebuilt tarball into the output directory
   and skips the build entirely — the cache key encodes everything that
   affects the artefact (package version, system, system version, build
@@ -42,7 +42,7 @@ defmodule Mix.Tasks.Nbpr.Build do
       Merged over any `config :nbpr_<name>, build_opts: [...]` and the
       package's schema defaults, so the resolved options (and thus the cache
       key) match what `mix nbpr.fetch` would compute for the same config.
-    * `--force` — skip the GHCR cache-hit check and always source-build.
+    * `--force` — skip the registry cache-hit check and always source-build.
 
   See `NBPR.Artifact.Registry` for project cache configuration and automatic
   publishing after source builds.
@@ -103,10 +103,10 @@ defmodule Mix.Tasks.Nbpr.Build do
   end
 
   # Returns `{:ok, tarball_path}` when a prebuilt artefact for this exact
-  # input tuple is already on a project or package GHCR site (and was successfully
+  # input tuple is already on a project or package registry (and was successfully
   # downloaded), or `:miss` to fall through to a source-build.
   #
-  # Any failure mode (no GHCR site declared, HEAD failure, 404, download
+  # Any failure mode (no registry site declared, HEAD failure, 404, download
   # failure) is treated as a miss — the build path is the safe fallback,
   # and the cache check shouldn't itself become a cause of build failures.
   defp maybe_reuse_cached(_pkg, _inputs, _output_dir, true), do: :miss
@@ -124,6 +124,35 @@ defmodule Mix.Tasks.Nbpr.Build do
             {:ok, true} -> download_cached(image, tag, inputs, output_dir)
             {:ok, false} -> :miss
             {:error, reason} -> miss_with_warn("HEAD #{image}:#{tag} failed", reason)
+          end
+
+        case result do
+          {:ok, _} -> {:halt, result}
+          :miss -> {:cont, :miss}
+        end
+
+      {:oci, _} = site, :miss ->
+        {resolver, plan} = NBPR.Artifact.Resolvers.OCI.plan(site, inputs)
+
+        result =
+          with {:ok, true} <- resolver.tag_exists?(plan) do
+            File.mkdir_p!(output_dir)
+            dest = Path.join(output_dir, Artifact.tarball_name(inputs))
+
+            case resolver.get(plan, dest) do
+              :ok ->
+                Mix.shell().info(
+                  "[nbpr] reused prebuilt #{plan.prefix}/#{plan.package}:#{plan.tag}"
+                )
+
+                {:ok, dest}
+
+              {:error, reason} ->
+                miss_with_warn("project registry download failed", reason)
+            end
+          else
+            {:ok, false} -> :miss
+            {:error, reason} -> miss_with_warn("project registry lookup failed", reason)
           end
 
         case result do

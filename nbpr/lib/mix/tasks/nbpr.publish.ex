@@ -14,6 +14,10 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
   ## Backends
 
+    * `{:oci, "<host>/<owner>[/<path>]"}` — pushes to an OCI registry such as
+      Forgejo. Project credentials use `NBPR_REGISTRY_USERNAME` and
+      `NBPR_REGISTRY_TOKEN`; see `NBPR.Artifact.Registry`.
+
     * `{:ghcr, "ghcr.io/<owner>"}` — pushes a pure-Elixir OCI artefact to
       `ghcr.io/<owner>/<package>:<tag>`. Requires `GHCR_TOKEN` or
       `GITHUB_TOKEN` in the environment (with `write:packages` scope).
@@ -28,7 +32,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
 
     * `--draft` — only applies to `github_releases`; creates the release as a draft on first creation.
     * `--prerelease` — only applies to `github_releases`; marks the release as a prerelease on first creation.
-    * `--force` — only applies to `ghcr`; re-pushes even when the tag is already published. By default, `nbpr.publish` checks GHCR for the tag and skips re-pushing — NBPR's cache-key model treats published tarballs as immutable, so re-pushing the same tag is wasted work in CI.
+    * `--force` — applies to OCI/GHCR registries; re-pushes even when the tag is already published. By default, `nbpr.publish` checks the registry for the tag and skips re-pushing — NBPR's cache-key model treats published tarballs as immutable, so re-pushing the same tag is wasted work in CI.
   """
 
   use Mix.Task
@@ -57,6 +61,7 @@ defmodule Mix.Tasks.Nbpr.Publish do
     pkg = module.__nbpr_package__()
 
     case pick_site(pkg) do
+      {:oci, prefix} -> publish_oci!(prefix, pkg, tarball, opts)
       {:ghcr, prefix} -> publish_ghcr!(prefix, pkg, tarball, opts)
       {:github_releases, owner_repo} -> publish_release!(owner_repo, pkg, tarball, opts)
       nil -> Mix.raise("no supported `artifact_sites:` declared on #{inspect(module)}")
@@ -69,9 +74,23 @@ defmodule Mix.Tasks.Nbpr.Publish do
   defp pick_site(pkg) do
     Enum.find(NBPR.Artifact.Registry.sites(pkg.artifact_sites), fn
       {:ghcr, _} -> true
+      {:oci, _} -> true
       {:github_releases, _} -> true
       _ -> false
     end)
+  end
+
+  defp publish_oci!(prefix, pkg, tarball, opts) do
+    package = "nbpr_#{pkg.name}"
+    tag = ghcr_tag!(tarball, package)
+    plan = %{prefix: prefix, package: package, tag: tag}
+
+    if !opts[:force] and NBPR.Artifact.Resolvers.OCI.tag_exists?(plan) == {:ok, true} do
+      Mix.shell().info("[nbpr] tag already published at #{prefix}/#{package}:#{tag} — skipping")
+    else
+      NBPR.OCI.RegistryPush.push!(prefix, package, tag, tarball)
+      Mix.shell().info("[nbpr] pushed #{Path.basename(tarball)} to #{prefix}/#{package}:#{tag}")
+    end
   end
 
   # ───────── GHCR ─────────

@@ -17,15 +17,15 @@ Then add the binary packages you need to your deps and run
 `mix firmware`. Full walkthrough in
 [Getting started](getting-started.md).
 
-## Share custom-system builds through GHCR
+## Share custom-system builds through your registry
 
 A custom Nerves system usually needs its own package builds. To share those
-builds across developer machines and CI, configure your project's GHCR
+builds across developer machines and CI, configure your project's OCI registry
 namespace in `config/config.exs`:
 
 ```elixir
 config :nbpr,
-  registry: "ghcr.io/my-org/firmware",
+  registry: "forgejo.example.com/my-org/firmware",
   publish_after_build: System.get_env("NBPR_PUBLISH_AFTER_BUILD") == "1"
 ```
 
@@ -38,21 +38,32 @@ source build. An existing extracted local cache still takes precedence in
 Set `NBPR_PUBLISH_AFTER_BUILD=1` in builds that should populate the shared
 cache. Both an explicit `nbpr.build` and a source-build fallback from
 `nbpr.fetch` then push the newly packed tarball to
-`ghcr.io/my-org/firmware/nbpr_<package>:<build-tag>`. Publishing is disabled
+`forgejo.example.com/my-org/firmware/nbpr_<package>:<build-tag>`. Publishing is disabled
 by default; a cache hit does not trigger a push. Push failures fail the task
 and leave the packed tarball on disk for retry with `mix nbpr.publish`.
 That task also prefers the configured project registry.
 
-Private pulls and pushes use `GHCR_TOKEN`, falling back to `GITHUB_TOKEN`,
-with `GHCR_USERNAME` defaulting to `oauth`. Supply credentials in the build
-environment with access to the destination packages: read access for pulls,
-write access for publishing. Without a token, pulls are anonymous and the
-packages must be public. Do not put tokens in package metadata or committed
-configuration.
+For a self-hosted Forgejo registry, set `NBPR_REGISTRY_USERNAME` to your
+Forgejo username and `NBPR_REGISTRY_TOKEN` to a personal access token with
+package access. Use read access for pulls and write access for publishing.
+These credentials are scoped to the configured project registry; upstream
+fallbacks do not receive them. Without credentials, pulls are anonymous and
+require public packages. Store tokens in your CI secrets or environment.
 
-This configuration currently supports GHCR namespaces only, including nested
-paths such as `ghcr.io/my-org/firmware`. Other OCI registry hosts are not yet
-supported.
+The registry prefix is `<host>[:port]/<owner>[/<path>]`. HTTPS is the default;
+use an explicit `http://` prefix for a local development registry. The OCI
+client supports Basic authentication and Bearer token endpoints on the same
+origin as the registry, as used by Forgejo. Cross-origin token endpoints,
+redirects and upload locations are not currently supported.
+
+You can also set `registry: "ghcr.io/my-org/firmware"` to use the existing
+GHCR backend, with `GHCR_TOKEN` (or `GITHUB_TOKEN`) and optional
+`GHCR_USERNAME`. GHCR credentials are independent of the project registry's
+`NBPR_REGISTRY_*` credentials.
+
+See [Forgejo's container registry documentation](https://forgejo.org/docs/latest/user/packages/container/)
+for image naming and token authentication. Package authors can declare an
+OCI source directly with `artifact_sites: [{:oci, "forgejo.example.com/owner/path"}]`.
 
 ## Where to go next
 

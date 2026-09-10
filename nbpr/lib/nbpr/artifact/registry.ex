@@ -6,10 +6,17 @@ defmodule NBPR.Artifact.Registry do
   It is searched before each package's declared sites. Publishing is opt-in:
 
       config :nbpr,
-        registry: "ghcr.io/my-org/firmware",
+        registry: "forgejo.example.com/my-org/firmware",
         publish_after_build: true
 
   With publishing disabled (the default), the registry is a read-only cache.
+  Set `NBPR_REGISTRY_USERNAME` and `NBPR_REGISTRY_TOKEN` for private Forgejo
+  pulls and pushes. Credentials are sent only to the configured registry.
+  HTTPS is the default; an explicit `http://` prefix is supported for local
+  development. Basic and same-origin Bearer authentication are supported.
+
+  A `ghcr.io/` prefix uses the existing GHCR backend and its `GHCR_TOKEN` /
+  `GITHUB_TOKEN` credentials instead.
   """
 
   alias NBPR.Artifact.Resolvers.GHCR
@@ -28,16 +35,12 @@ defmodule NBPR.Artifact.Registry do
       nil ->
         nil
 
-      "ghcr.io/" <> owner = prefix when owner != "" ->
-        if Regex.match?(~r/\A[a-z0-9]+(?:[._\/-][a-z0-9]+)*\z/, owner) do
-          {:ghcr, prefix}
-        else
-          raise ArgumentError,
-                "registry must be a lowercase ghcr.io/<owner>[/<path>] prefix without a trailing slash"
-        end
+      prefix when is_binary(prefix) ->
+        NBPR.OCI.Client.parse_prefix!(prefix)
+        if String.starts_with?(prefix, "ghcr.io/"), do: {:ghcr, prefix}, else: {:oci, prefix}
 
       _ ->
-        raise ArgumentError, "config :nbpr, :registry must be a ghcr.io/<owner> prefix"
+        raise ArgumentError, "config :nbpr, :registry must be a host/<owner> prefix"
     end
   end
 
@@ -65,6 +68,15 @@ defmodule NBPR.Artifact.Registry do
         push = Keyword.get(opts, :push, &NBPR.OCI.Push.push!/3)
         :ok = push.(image, tag, tarball)
         Mix.shell().info("[nbpr] pushed #{Path.basename(tarball)} to ghcr.io/#{image}:#{tag}")
+
+      {:oci, prefix} ->
+        tag = GHCR.tag_for(inputs)
+        push = Keyword.get(opts, :push, &NBPR.OCI.RegistryPush.push!/4)
+        :ok = push.(prefix, inputs.package_name, tag, tarball)
+
+        Mix.shell().info(
+          "[nbpr] pushed #{Path.basename(tarball)} to #{prefix}/#{inputs.package_name}:#{tag}"
+        )
 
       nil ->
         :ok
