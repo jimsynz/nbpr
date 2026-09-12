@@ -175,12 +175,27 @@ defmodule NBPR.Buildroot.Backend.Shell do
   # lands as a bare token in every target compile/link line (`ld: cannot find
   # gnu`). The container backend forwards only the explicit build env and never
   # sees it; unset it here so the native path matches.
-  # Nerves also exports CPPFLAGS and LDFLAGS with the target sysroot. Buildroot
-  # computes its own host and target flags, but does not unexport these two;
-  # inheriting them makes host packages compile/link against target libraries
-  # and headers. System.cmd's :env merges with the caller's environment, so
-  # explicitly unset them for every make invocation.
-  @scrubbed_env [{"TARGET_ABI", nil}, {"CPPFLAGS", nil}, {"LDFLAGS", nil}]
+  # Nerves' nerves_env.exs also exports the cross toolchain over the standard
+  # build variables: AR, AS, CC, CXX, LD, STRIP, CFLAGS, CPPFLAGS, CXXFLAGS and
+  # LDFLAGS. Buildroot's "Hide troublesome environment variables from sub
+  # processes" block unexports AR, CC, CFLAGS, CXX, CXXFLAGS and LD, so those
+  # never reach a package. It does not unexport AS, STRIP, CPPFLAGS or LDFLAGS,
+  # and a host package then builds against the target toolchain and sysroot.
+  #
+  # STRIP is the one that fails outright rather than silently: meson reads it
+  # from the environment and strips what it installs, so `host-libglib2` ran
+  # `<tuple>-strip` over its own x86-64 `libglib-2.0.so` and got "Unable to
+  # recognise the architecture of the input file".
+  #
+  # System.cmd's :env merges with the caller's environment, so explicitly unset
+  # each one for every make invocation.
+  @scrubbed_env [
+    {"AS", nil},
+    {"CPPFLAGS", nil},
+    {"LDFLAGS", nil},
+    {"STRIP", nil},
+    {"TARGET_ABI", nil}
+  ]
 
   defp run_make!(cwd, output_dir, env, targets) do
     args = Build.make_args(output_dir, targets)
