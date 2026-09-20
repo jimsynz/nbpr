@@ -1,0 +1,2 @@
+name: NBPR_LIBRESPOT
+desc: librespot, vendored for NBPR because it is not in Buildroot mainline

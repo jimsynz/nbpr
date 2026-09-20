@@ -1,0 +1,22 @@
+config BR2_PACKAGE_LIBRESPOT
+	bool "librespot"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on !BR2_STATIC_LIBS
+	select BR2_PACKAGE_HOST_RUSTC
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_ALSA_LIB_PCM
+	help
+	  An open source client library for Spotify. It offers a device
+	  that any Spotify application can cast to, over the Spotify
+	  Connect protocol.
+
+	  A Spotify Premium account is required. The project says of
+	  itself that using it to connect to Spotify's API is probably
+	  forbidden by them.
+
+	  https://github.com/librespot-org/librespot
+
+comment "librespot needs a toolchain w/ threads, dynamic library"
+	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
+	depends on !BR2_TOOLCHAIN_HAS_THREADS || BR2_STATIC_LIBS

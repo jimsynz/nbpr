@@ -54,19 +54,27 @@ defmodule NBPR.Buildroot.Builder do
     output_dir_br = stable_output_dir(inputs.system_app, br_version)
     defconfig_text = render_defconfig!(pkg, system_source_path, br_source, inputs.build_opts)
 
+    # **`BR2_EXTERNAL` takes more than one tree, separated by colons.** A vendored
+    # package brings its own, and the system's has to stay: it is where the Nerves
+    # packages that the system's defconfig names are declared.
+    external_tree = NBPR.Package.external_tree(pkg)
+
     extra_env = [
       {"NERVES_DEFCONFIG_DIR", system_source_path},
-      {"BR2_EXTERNAL", nerves_system_br_path}
+      {"BR2_EXTERNAL",
+       Enum.join(Enum.reject([nerves_system_br_path, external_tree], &is_nil/1), ":")}
     ]
 
     deps_path = Mix.Project.deps_path()
+    mounts = Enum.reject([deps_path, external_tree], &is_nil/1)
+    br_name = NBPR.Package.br_name(pkg)
 
     harvest_dir =
-      Build.build!(br_source, output_dir_br, defconfig_text, pkg.br_package, extra_env,
-        extra_mounts: [deps_path]
+      Build.build!(br_source, output_dir_br, defconfig_text, br_name, extra_env,
+        extra_mounts: mounts
       )
 
-    sources = Harvest.harvest!(harvest_dir, pkg.br_package)
+    sources = Harvest.harvest!(harvest_dir, br_name)
     tarball = Pack.pack!(inputs, sources, output_dir)
     NBPR.Artifact.Registry.publish_after_build!(inputs, tarball)
     tarball
