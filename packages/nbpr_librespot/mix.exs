@@ -28,7 +28,12 @@ defmodule Nbpr.Librespot.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2")
+      # **A vendored package needs the library that knows what one is.** `:nbpr` 0.4.2
+      # and earlier read `br_package` straight out of the metadata, and a vendored
+      # package holds `nil` there, so `NBPR.Buildroot.Defconfig.gating_symbols/2`
+      # stopped a consumer build with `no function clause matching`. 0.5.0 is the first
+      # one with `NBPR.Package.br_name/1`.
+      nbpr_dep(:nbpr, "~> 0.5")
     ]
   end
 
