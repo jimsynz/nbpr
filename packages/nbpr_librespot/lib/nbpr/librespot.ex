@@ -52,6 +52,12 @@ defmodule NBPR.Librespot do
   - **`with-libmdns`** is what lets a telephone find the device. The alternatives
     need Avahi or `dns-sd`, and a Nerves rootfs has neither.
 
+  **The list goes in twice.** `pkg-cargo.mk` gives `cargo build` the
+  `_CARGO_BUILD_OPTS` and then gives `cargo install` the `_CARGO_INSTALL_OPTS`, and
+  an install that names no features builds the default set all over again. Setting
+  only the first got the build through and then stopped the install with `Could not
+  find directory of OpenSSL installation`.
+
   ## It listens, and a device that no person asked for should not
 
   librespot advertises itself with zeroconf and listens for a controller, which is

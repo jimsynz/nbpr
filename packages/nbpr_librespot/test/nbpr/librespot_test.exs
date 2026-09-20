@@ -54,6 +54,17 @@ defmodule NBPR.LibrespotTest do
       assert mk =~ "with-libmdns"
       assert mk =~ "$(eval $(cargo-package))"
     end
+
+    # Buildroot builds twice and the two steps read different variables, so an
+    # install that names no features builds the default set again and openssl-sys
+    # comes back with it.
+    test "the install step takes the same features as the build" do
+      tree = NBPR.Package.external_tree(NBPR.Librespot.__nbpr_package__())
+      mk = File.read!(Path.join(tree, "package/librespot/librespot.mk"))
+
+      assert mk =~ "LIBRESPOT_CARGO_BUILD_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)"
+      assert mk =~ "LIBRESPOT_CARGO_INSTALL_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)"
+    end
   end
 
   describe "generated daemon module" do

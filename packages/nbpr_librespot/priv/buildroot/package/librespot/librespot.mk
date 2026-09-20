@@ -28,8 +28,18 @@ LIBRESPOT_DEPENDENCIES = alsa-lib host-pkgconf
 #
 # **`with-libmdns` is what lets a telephone find the device.** It is the pure Rust
 # responder; the alternatives need Avahi or `dns-sd`, and neither is in the rootfs.
-LIBRESPOT_CARGO_BUILD_OPTS = \
+# **Buildroot builds twice, and the two steps read different variables.**
+# `pkg-cargo.mk` gives `cargo build` the `_CARGO_BUILD_OPTS` and then gives
+# `cargo install --path ./` the `_CARGO_INSTALL_OPTS`, and an install that names no
+# features builds the default set again. The first attempt at this set only the
+# first, so the build went through and the install pulled `openssl-sys` back in and
+# stopped with `Could not find directory of OpenSSL installation`. Both take the same
+# list.
+LIBRESPOT_CARGO_FEATURE_OPTS = \
 	--no-default-features \
 	--features alsa-backend,with-libmdns,rustls-tls-webpki-roots
+
+LIBRESPOT_CARGO_BUILD_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)
+LIBRESPOT_CARGO_INSTALL_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)
 
 $(eval $(cargo-package))
