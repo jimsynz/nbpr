@@ -42,4 +42,19 @@ LIBRESPOT_CARGO_FEATURE_OPTS = \
 LIBRESPOT_CARGO_BUILD_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)
 LIBRESPOT_CARGO_INSTALL_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)
 
+# **A musl target of Rust links a fully static binary by default**, and Buildroot
+# builds alsa-lib shared and not static, so the link ended with
+# `cannot find -lasound`. Turning the static default off makes the musl build
+# dynamic, which is what every other target here already does.
+#
+# `CARGO_TARGET_<TRIPLE>_RUSTFLAGS` and not `RUSTFLAGS`: `pkg-cargo.mk` keeps the
+# host flags in the second, so the per-target variable is the one that reaches the
+# cross build alone. `pkg-cargo.mk` sets the same variable on `arm` for a
+# compiler-builtins workaround, and no toolchain here is both `arm` and musl, so the
+# two never meet.
+ifeq ($(BR2_TOOLCHAIN_USES_MUSL),y)
+LIBRESPOT_CARGO_ENV += \
+	CARGO_TARGET_$(call UPPERCASE,$(RUSTC_TARGET_NAME))_RUSTFLAGS="-C target-feature=-crt-static"
+endif
+
 $(eval $(cargo-package))

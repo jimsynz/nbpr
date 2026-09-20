@@ -58,6 +58,14 @@ defmodule NBPR.Librespot do
   only the first got the build through and then stopped the install with `Could not
   find directory of OpenSSL installation`.
 
+  ## musl links statically, and that had to be turned off
+
+  A musl target of Rust builds a fully static binary by default. Buildroot builds
+  alsa-lib shared and not static, so the link ended with `cannot find -lasound` on
+  the one musl target of the matrix and on no other. The vendored `.mk` passes
+  `-C target-feature=-crt-static` there, which makes that build dynamic like every
+  other one.
+
   ## It listens, and a device that no person asked for should not
 
   librespot advertises itself with zeroconf and listens for a controller, which is

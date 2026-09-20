@@ -65,6 +65,16 @@ defmodule NBPR.LibrespotTest do
       assert mk =~ "LIBRESPOT_CARGO_BUILD_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)"
       assert mk =~ "LIBRESPOT_CARGO_INSTALL_OPTS = $(LIBRESPOT_CARGO_FEATURE_OPTS)"
     end
+
+    # A musl target of Rust links a fully static binary, and Buildroot builds
+    # alsa-lib shared, so the link ended with `cannot find -lasound`.
+    test "the musl target is built dynamically" do
+      tree = NBPR.Package.external_tree(NBPR.Librespot.__nbpr_package__())
+      mk = File.read!(Path.join(tree, "package/librespot/librespot.mk"))
+
+      assert mk =~ "ifeq ($(BR2_TOOLCHAIN_USES_MUSL),y)"
+      assert mk =~ "-C target-feature=-crt-static"
+    end
   end
 
   describe "generated daemon module" do
