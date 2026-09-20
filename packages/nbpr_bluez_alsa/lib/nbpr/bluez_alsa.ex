@@ -31,9 +31,27 @@ defmodule NBPR.BluezAlsa do
   ## The plugin is userspace, and the kernel knows nothing about it
 
   No kernel audio driver is involved, so the plugin needs no module and no device
-  node. What it does need is `alsa-lib` finding it, and Buildroot installs the
-  configuration at `/etc/alsa/conf.d/20-bluealsa.conf` for that. A rootfs that
-  drops `/etc/alsa/conf.d` gives `Unknown PCM bluealsa` and no sound.
+  node. What it does need is `alsa-lib` finding two things.
+
+  **The shared object.** `alsa-lib` looks for `libasound_module_pcm_bluealsa.so`
+  in the plugin directory it was compiled with, which is `/usr/lib/alsa-lib` and
+  is not where an NBPR package lands. This package therefore exports
+  `ALSA_PLUGIN_DIR` into the BEAM environment at boot, and `alsa-lib` reads that
+  variable in preference to the compiled-in path. Anything spawned from the BEAM
+  — `aplay` through MuonTrap, a port, `System.cmd/2` — inherits it.
+
+  **The PCM definition.** Buildroot installs it at
+  `/etc/alsa/conf.d/20-bluealsa.conf`, and that path is in the rootfs of a
+  Buildroot system and not in the priv dir of a package. Put the definition in
+  your own `/etc/asound.conf` instead:
+
+      pcm.bluealsa {
+        type bluealsa
+        device "AA:BB:CC:DD:EE:FF"
+        profile "a2dp"
+      }
+
+  Without it, `aplay -D bluealsa` gives `Unknown PCM bluealsa` and no sound.
 
   ## SBC is the codec, and that is a choice this package makes for you
 
@@ -55,6 +73,7 @@ defmodule NBPR.BluezAlsa do
     br_package: "bluez-alsa",
     description: "Bluetooth Audio ALSA Backend.",
     homepage: "https://github.com/Arkq/bluez-alsa",
+    runtime_env: [{"ALSA_PLUGIN_DIR", "${NBPR_PRIV}/usr/lib/alsa-lib"}],
     daemons: [
       bluealsad: [
         path: "/usr/bin/bluealsad",

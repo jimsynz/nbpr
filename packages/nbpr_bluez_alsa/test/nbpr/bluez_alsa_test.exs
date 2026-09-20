@@ -13,6 +13,11 @@ defmodule NBPR.BluezAlsaTest do
       assert pkg.artifact_sites == [ghcr: "ghcr.io/jimsynz/nbpr"]
       assert pkg.kernel_modules == []
 
+      # `alsa-lib` reads this in preference to its compiled-in plugin directory,
+      # which is where the plugin would be on a Buildroot rootfs and is not where
+      # an NBPR package lands.
+      assert pkg.runtime_env == [{"ALSA_PLUGIN_DIR", "${NBPR_PRIV}/usr/lib/alsa-lib"}]
+
       [daemon] = pkg.daemons
       assert daemon.name == :bluealsad
       assert daemon.module == NBPR.BluezAlsa.Bluealsad
