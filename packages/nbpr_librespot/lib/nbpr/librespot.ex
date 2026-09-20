@@ -52,6 +52,27 @@ defmodule NBPR.Librespot do
   - **`with-libmdns`** is what lets a telephone find the device. The alternatives
     need Avahi or `dns-sd`, and a Nerves rootfs has neither.
 
+  ## Yes, that is a second mDNS responder, and it has to be
+
+  A Nerves device almost certainly runs `mdns_lite` already, so carrying librespot's
+  own responder looks like waste. It is not avoidable, and dropping the feature
+  costs more than it saves.
+
+  **The responder and the handshake are one unit.** `librespot-discovery` spawns the
+  responder, registers `_spotify-connect._tcp`, and holds that handle beside the
+  HTTP endpoint that a telephone posts the credentials to. A build with no backend
+  compiles — there is no `compile_error!` here, unlike the TLS one — and then fails
+  at runtime with `librespot built without zeroconf backends`. That takes the HTTP
+  endpoint with it, so there is nothing left for another responder to advertise:
+  a device built that way needs `disable_discovery: true` and stored credentials,
+  and a person can no longer cast to it.
+
+  **The two responders do not fight.** `libmdns` sets `SO_REUSEADDR` and
+  `SO_REUSEPORT`, and so does `mdns_lite`, so both bind 5353 and each answers only
+  for the names it registered. The cost is a second multicast membership and a
+  second process woken by every mDNS query on the network, which is small and is
+  the price of the feature.
+
   **The list goes in twice.** `pkg-cargo.mk` gives `cargo build` the
   `_CARGO_BUILD_OPTS` and then gives `cargo install` the `_CARGO_INSTALL_OPTS`, and
   an install that names no features builds the default set all over again. Setting
