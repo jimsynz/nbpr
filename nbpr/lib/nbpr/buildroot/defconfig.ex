@@ -115,8 +115,8 @@ defmodule NBPR.Buildroot.Defconfig do
         "BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y",
         ~s(BR2_PRIMARY_SITE="#{@primary_site}")
       ] ++
-        Enum.map(gating_symbols(br_tree, package.br_package), &"#{&1}=y") ++
-        ["BR2_PACKAGE_#{br_symbol(package.br_package)}=y"]
+        Enum.map(gating_symbols(br_tree, package), &"#{&1}=y") ++
+        ["BR2_PACKAGE_#{br_symbol(NBPR.Package.br_name(package))}=y"]
 
     opt_lines = Enum.flat_map(build_opts, &render_build_opt(&1, package))
 
@@ -132,7 +132,16 @@ defmodule NBPR.Buildroot.Defconfig do
   Empty for a package whose symbol is declared at the top level of its own
   `Config.in` and sourced unconditionally.
   """
-  @spec gating_symbols(Path.t(), String.t()) :: [String.t()]
+  @spec gating_symbols(Path.t(), NBPR.Package.t() | String.t()) :: [String.t()]
+  def gating_symbols(br_tree, %NBPR.Package{} = package) do
+    # **A vendored tree is sourced by `BR2_EXTERNAL` and nothing gates it.**
+    # Buildroot puts an external tree's `Config.in` under its own menu with no
+    # enclosing `if`, so the lookup below would walk a chain that is not there.
+    if NBPR.Package.vendored?(package),
+      do: [],
+      else: gating_symbols(br_tree, package.br_package)
+  end
+
   def gating_symbols(br_tree, br_package) when is_binary(br_tree) and is_binary(br_package) do
     symbol = "BR2_PACKAGE_" <> br_symbol(br_package)
 

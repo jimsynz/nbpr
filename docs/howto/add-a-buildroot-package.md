@@ -7,8 +7,7 @@ build a Nerves firmware, and have a clone of this repo.
 
 If the package isn't in upstream Buildroot mainline, this flow won't
 work — `mix nbpr.new` reads metadata from a mainline Buildroot tree.
-A vendored-package guide is on the to-do list; for now, treat
-out-of-tree packages as out of scope here.
+Skip to [Vendored packages](#vendored-packages) at the end instead.
 
 ## Prerequisites
 
@@ -275,3 +274,94 @@ You don't tag or publish manually.
   built-in drivers work. Fixing that case needs the plugin directory
   installed at its rootfs path via the `rootfs/` artefact slice, which
   `NBPR.Pack` carries but the Buildroot harvest step doesn't populate yet.
+
+## Vendored packages
+
+A package that isn't in Buildroot mainline brings its own Buildroot
+external tree. `nbpr_librespot` is the worked example — librespot is
+Rust, and nobody has pushed it upstream.
+
+There's no generator for this: `mix nbpr.new` reads metadata out of a
+mainline tree, and for a vendored package there is none to read. Copy
+the layout instead.
+
+### The layout
+
+The tree lives under the package's `priv/`, because Hex ships `priv`
+and the tree has to be there at build time whichever way the package
+arrived:
+
+```
+packages/nbpr_<name>/
+├── lib/nbpr/<name>.ex
+├── mix.exs
+└── priv/
+    └── buildroot/                     <- br_external_path names this
+        ├── Config.in
+        ├── external.desc
+        ├── external.mk
+        └── package/<name>/
+            ├── Config.in
+            └── <name>.mk
+```
+
+`external.desc` names the tree, and the name becomes part of the
+variable that the other two files use:
+
+```
+name: NBPR_<NAME>
+desc: <name>, vendored for NBPR because it is not in Buildroot mainline
+```
+
+```
+source "$BR2_EXTERNAL_NBPR_<NAME>_PATH/package/<name>/Config.in"
+```
+
+```
+include $(sort $(wildcard $(BR2_EXTERNAL_NBPR_<NAME>_PATH)/package/*/*.mk))
+```
+
+### The metadata module
+
+Declare `br_external_path:` instead of `br_package:` — they're
+mutually exclusive, and `use NBPR.BrPackage` refuses a module that
+names both or neither. The path is **relative to the package's
+`priv`**, so it's `"buildroot"` and not an absolute path:
+
+```elixir
+use NBPR.BrPackage,
+  version: 1,
+  br_external_path: "buildroot",
+  description: "...",
+  homepage: "..."
+```
+
+**The Buildroot package name is the NBPR package name.** A mainline
+package names `br_package:` because the two can differ — `bluez-alsa`
+is `nbpr_bluez_alsa` here, since Hex takes no hyphen. The external
+tree is yours, so give the directory under `package/` the same name as
+the package and there's nothing to reconcile.
+
+### What the build does differently
+
+Two things, and neither is yours to arrange:
+
+- `BR2_EXTERNAL` gets your tree appended to the system's, separated by
+  a colon. The system's has to stay — it's where the Nerves packages
+  that the system's defconfig names are declared.
+- **No gating symbols are looked up.** Buildroot puts an external
+  tree's `Config.in` under its own menu with no enclosing `if`, so the
+  chain that `NBPR.Buildroot.Defconfig` walks for a nested mainline
+  package isn't there to walk.
+
+Everything else — the defconfig layering, `build_opts` and their
+`:br_flag`s, the harvest, the daemon modules, the artefact cache key —
+works exactly as it does for a mainline package.
+
+### Keeping it current
+
+Renovate can't watch a vendored `.mk`, so the version in it is yours
+to bump. Keep `@version` in `mix.exs` and `<NAME>_VERSION` in the `.mk`
+in step: the first is what Hex resolves and the second is what actually
+gets built, and a pair that disagree ship a tarball whose version is a
+lie.

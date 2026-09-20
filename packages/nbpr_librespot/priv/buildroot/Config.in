@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_NBPR_LIBRESPOT_PATH/package/librespot/Config.in"
