@@ -34,12 +34,23 @@ defmodule NBPR.Librespot do
   and it needs a target architecture that `host-rustc` supports, which the
   `Config.in` of the vendored tree says.
 
-  ## One audio backend, and it is ALSA
+  ## Three features, and each one had to be named
 
-  The default feature set of librespot builds every backend it has, and each one
-  drags in another library that a Nerves system does not carry. The vendored `.mk`
-  therefore passes `--no-default-features --features alsa-backend`, so PulseAudio,
-  JACK, GStreamer and the rest stay out of the tree.
+  The default set is `native-tls`, `rodio-backend` and `with-libmdns`, and rodio
+  drags in every audio backend the platform has. `--no-default-features` keeps
+  those out of the tree and takes the other two defaults with it, so the vendored
+  `.mk` names all three again.
+
+  - **`alsa-backend`** is the audio, and the only backend a Nerves rootfs can
+    serve.
+  - **`rustls-tls-webpki-roots`** is the TLS. librespot refuses to compile without
+    one — the check is in `librespot-oauth`, because that crate comes first — and
+    this one is pure Rust, so the build links no OpenSSL of the system and the
+    roots are compiled in rather than read out of the rootfs. An appliance that
+    carries no CA bundle therefore still reaches Spotify, and the roots move with a
+    firmware upgrade.
+  - **`with-libmdns`** is what lets a telephone find the device. The alternatives
+    need Avahi or `dns-sd`, and a Nerves rootfs has neither.
 
   ## It listens, and a device that no person asked for should not
 

@@ -41,13 +41,17 @@ defmodule NBPR.LibrespotTest do
       assert File.exists?(Path.join(tree, "package/librespot/Config.in"))
     end
 
-    # The default feature set builds every backend, and each one needs a library
-    # that a Nerves system does not carry.
-    test "the build takes the ALSA backend and no other" do
+    # `--no-default-features` takes the TLS backend and the mDNS responder with it,
+    # and librespot refuses to compile without the first: the build failed on every
+    # target with `Either feature "native-tls" ... must be enabled`.
+    test "the build names a TLS backend, an mDNS responder and one audio backend" do
       tree = NBPR.Package.external_tree(NBPR.Librespot.__nbpr_package__())
       mk = File.read!(Path.join(tree, "package/librespot/librespot.mk"))
 
-      assert mk =~ "--no-default-features --features alsa-backend"
+      assert mk =~ "--no-default-features"
+      assert mk =~ "alsa-backend"
+      assert mk =~ "rustls-tls-webpki-roots"
+      assert mk =~ "with-libmdns"
       assert mk =~ "$(eval $(cargo-package))"
     end
   end
