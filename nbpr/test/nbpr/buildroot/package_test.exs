@@ -51,6 +51,27 @@ defmodule NBPR.Buildroot.PackageTest do
       assert pkg.help =~ "http://software.es.net/iperf"
     end
 
+    # `sbc` writes `SBC_LICENSE := LGPL-2.1+ (library)`, and a reader that knew only
+    # `=` saw an absent variable and stopped with `missing_var`.
+    test "reads a variable assigned with := or ?=", %{br_tree: br_tree} do
+      write_pkg!(br_tree, "sbc",
+        mk: """
+        SBC_VERSION ?= 2.1
+        SBC_SITE = $(BR2_KERNEL_MIRROR)/linux/bluetooth
+        SBC_LICENSE := LGPL-2.1+ (library)
+        SBC_DEPENDENCIES := host-pkgconf libsndfile
+        $(eval $(autotools-package))
+        """,
+        config_in: ""
+      )
+
+      assert {:ok, pkg} = Package.read(br_tree, "sbc")
+
+      assert pkg.version == "2.1"
+      assert pkg.licences == ["LGPL-2.1+"]
+      assert pkg.dependencies == ["libsndfile"]
+    end
+
     test "falls back to <NAME>_SITE when help has no URL", %{br_tree: br_tree} do
       write_pkg!(br_tree, "thing",
         mk: """

@@ -149,7 +149,7 @@ defmodule NBPR.Buildroot.Package do
   # (`\` at end of line) so a wrapped `_DEPENDENCIES` list yields its actual
   # deps rather than a bare `\` token from the first line.
   defp extract_mk_dependencies(content, prefix) do
-    case Regex.run(~r/^#{prefix}_DEPENDENCIES\s*=\s*((?:.*\\\n)*.*)/m, content) do
+    case Regex.run(~r/^#{prefix}_DEPENDENCIES\s*[:?]?=\s*((?:.*\\\n)*.*)/m, content) do
       [_, block] ->
         block
         |> String.replace(~r/\\\n/, " ")
@@ -174,8 +174,11 @@ defmodule NBPR.Buildroot.Package do
 
   defp var_prefix(name), do: name |> String.upcase() |> String.replace("-", "_")
 
+  # **Buildroot assigns with `=`, `:=` and `?=`, and a reader that knew only the first
+  # one read no licence out of `sbc`.** `SBC_LICENSE := LGPL-2.1+ (library)` then looked
+  # like an absent variable, and `mix nbpr.new sbc` stopped with `missing_var`.
   defp extract_var(content, prefix, suffix) do
-    re = Regex.compile!("^#{Regex.escape(prefix)}_#{suffix}\\s*=\\s*(.*)$", "m")
+    re = Regex.compile!("^#{Regex.escape(prefix)}_#{suffix}\\s*[:?]?=\\s*(.*)$", "m")
 
     case Regex.run(re, content) do
       [_, value] -> {:ok, value |> String.trim() |> resolve_make_vars(content)}
@@ -202,7 +205,7 @@ defmodule NBPR.Buildroot.Package do
   end
 
   defp lookup_var(content, var) do
-    re = Regex.compile!("^#{Regex.escape(var)}\\s*=\\s*(.*)$", "m")
+    re = Regex.compile!("^#{Regex.escape(var)}\\s*[:?]?=\\s*(.*)$", "m")
 
     case Regex.run(re, content) do
       [_, value] -> String.trim(value)
