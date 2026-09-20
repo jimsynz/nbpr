@@ -37,6 +37,24 @@ defmodule NBPR.Dbus do
   to it from the overlay. Any 32 hex digits will do: the bus uses it to tell one
   machine from another and nothing else.
 
+  ## The policy of the bus, and where BlueZ's half of it goes
+
+  `system.conf` denies what it does not allow, and it picks up the rest of the
+  policy from `<includedir>system.d</includedir>` — **a relative path, resolved
+  against the directory of the file that named it.** BlueZ ships the fragment that
+  lets a process own `org.bluez`, and on a Buildroot rootfs both files land in
+  `/etc/dbus-1` and find each other.
+
+  They do not here: each package lands under its own priv directory, so a
+  `system.conf` read out of this package's priv includes that package's `system.d`
+  and never sees BlueZ's. A device that starts the bus this way gets
+  `org.freedesktop.DBus.Error.AccessDenied` the moment `bluetoothd` tries to claim
+  its name.
+
+  Ship your own `system.conf` with the policy you need written into it. On an
+  appliance where everything runs as root that is a few lines, and it is honest
+  about what the bus allows rather than inheriting a desktop's answer.
+
   ## Who starts it
 
   Nothing in this package. Buildroot ships an init script, and a Nerves rootfs
