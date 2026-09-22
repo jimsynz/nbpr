@@ -1,7 +1,7 @@
 defmodule Nbpr.Libcurl.MixProject do
   use Mix.Project
 
-  @version "8.21.0"
+  @version "8.22.0"
 
   def project do
     [
