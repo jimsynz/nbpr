@@ -8,24 +8,35 @@ defmodule NBPR.BluezAlsa do
   no Bluetooth code at all: it opens `bluealsa:DEV=<address>` where it used to open
   `hw:0,0`, and `aplay` and every other ALSA program work unchanged.
 
-  Adds `bluealsad` at `/usr/bin/bluealsad`, the ALSA plugin at
-  `/usr/lib/alsa-lib/libasound_module_pcm_bluealsa.so`, and `bluealsactl` and
-  `bluealsa-aplay`. Generates `NBPR.BluezAlsa.Bluealsad` — a MuonTrap-supervised
-  GenServer you add to your own supervision tree:
+  Adds `bluealsa` at `/usr/bin/bluealsa`, the ALSA plugins at
+  `/usr/lib/alsa-lib/libasound_module_{pcm,ctl}_bluealsa.so`, and
+  `bluealsa-cli`, `bluealsa-aplay` and `a2dpconf`. Generates
+  `NBPR.BluezAlsa.Bluealsa` — a MuonTrap-supervised GenServer you add to your own
+  supervision tree:
 
       children = [
         {NBPR.Dbus.DbusDaemon, config_file: "/etc/dbus-1/system.conf"},
         {NBPR.Bluez5Utils.Bluetoothd, []},
-        {NBPR.BluezAlsa.Bluealsad, profiles: ["a2dp-source"]}
+        {NBPR.BluezAlsa.Bluealsa, profiles: ["a2dp-source"]}
       ]
 
   The order is the order: the bus, then BlueZ, then this.
+
+  ## The daemon is `bluealsa` here and `bluealsad` upstream
+
+  **v5.0.0 renamed the daemon to `bluealsad` and the controller to
+  `bluealsactl`, with no backward compatibility**, and this package wraps
+  Buildroot's pin, which is v4.3.1 — the last release under the old names. So the
+  names above are the v4 ones, and every v5-era answer you find elsewhere will
+  use the other set. When Buildroot moves to v5 and Renovate bumps `@version`,
+  the daemon declaration and this text move with it, and so does the generated
+  module name.
 
   ## Which end of the link you are
 
   **`a2dp-source` sends audio to a speaker**, and it is what a stereo or a phone
   does. **`a2dp-sink` takes audio from a telephone**, and it is what a speaker
-  does. A device can do both, and `bluealsad` does neither unless you name it: the
+  does. A device can do both, and `bluealsa` does neither unless you name it: the
   daemon starts with no profile and routes nothing.
 
   ## The plugin is userspace, and the kernel knows nothing about it
@@ -75,8 +86,8 @@ defmodule NBPR.BluezAlsa do
     homepage: "https://github.com/Arkq/bluez-alsa",
     runtime_env: [{"ALSA_PLUGIN_DIR", "${NBPR_PRIV}/usr/lib/alsa-lib"}],
     daemons: [
-      bluealsad: [
-        path: "/usr/bin/bluealsad",
+      bluealsa: [
+        path: "/usr/bin/bluealsa",
         opts: [
           profiles: [
             type: {:list, :string},
