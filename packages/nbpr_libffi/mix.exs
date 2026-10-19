@@ -1,7 +1,7 @@
 defmodule Nbpr.Libffi.MixProject do
   use Mix.Project
 
-  @version "3.4.8"
+  @version "3.8.0"
 
   def project do
     [
