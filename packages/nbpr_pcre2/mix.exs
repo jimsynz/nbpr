@@ -1,7 +1,7 @@
 defmodule Nbpr.Pcre2.MixProject do
   use Mix.Project
 
-  @version "10.47"
+  @version "10.49"
 
   def project do
     [
