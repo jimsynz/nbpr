@@ -1,7 +1,7 @@
 defmodule Nbpr.Expat.MixProject do
   use Mix.Project
 
-  @version "2.8.4"
+  @version "2.9.0"
 
   def project do
     [
