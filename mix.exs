@@ -25,16 +25,16 @@ defmodule NBPR.Workspace.MixProject do
   # Single source of truth for the CI prebuild matrix
   # (`mix nbpr.matrix --json`). Map shape: `target => {github, version}`.
   @prebuild_systems %{
-    rpi0: {"nerves-project/nerves_system_rpi0", "2.2.0"},
-    rpi0_2: {"nerves-project/nerves_system_rpi0_2", "2.2.0"},
-    rpi3: {"nerves-project/nerves_system_rpi3", "2.2.0"},
-    rpi3a: {"nerves-project/nerves_system_rpi3a", "2.2.0"},
-    rpi4: {"nerves-project/nerves_system_rpi4", "2.2.0"},
-    rpi5: {"nerves-project/nerves_system_rpi5", "2.2.0"},
-    bbb: {"nerves-project/nerves_system_bbb", "2.31.0"},
-    trellis: {"nerves-project/nerves_system_trellis", "0.6.0"},
-    x86_64: {"nerves-project/nerves_system_x86_64", "1.35.0"},
-    qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.5.0"}
+    rpi0: {"nerves-project/nerves_system_rpi0", "2.2.1"},
+    rpi0_2: {"nerves-project/nerves_system_rpi0_2", "2.2.1"},
+    rpi3: {"nerves-project/nerves_system_rpi3", "2.2.1"},
+    rpi3a: {"nerves-project/nerves_system_rpi3a", "2.2.1"},
+    rpi4: {"nerves-project/nerves_system_rpi4", "2.2.1"},
+    rpi5: {"nerves-project/nerves_system_rpi5", "2.2.1"},
+    bbb: {"nerves-project/nerves_system_bbb", "2.31.1"},
+    trellis: {"nerves-project/nerves_system_trellis", "0.6.1"},
+    x86_64: {"nerves-project/nerves_system_x86_64", "1.35.1"},
+    qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.5.1"}
   }
 
   # The C library each target's toolchain targets, from the toolchain named in
