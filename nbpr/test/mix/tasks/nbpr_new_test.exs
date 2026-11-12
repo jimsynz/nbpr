@@ -272,6 +272,60 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert readme =~ "https://hexdocs.pm/nbpr/getting-started.html"
     end
 
+    # `~> 0.1` starts at 0.1.0, so advertising it for a 0.0.z package would
+    # put a requirement in the README that resolves to nothing.
+    test "advertises a requirement a 0.0.z version actually satisfies", %{tmp: tmp} do
+      seed_br_cache_pkg!(tmp, "tinyvsn", "MIT", version: "0.0.12")
+
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["tinyvsn"]) end)
+      end)
+
+      readme = File.read!(Path.join(tmp, "packages/nbpr_tinyvsn/README.md"))
+
+      assert readme =~ ~s|{:nbpr_tinyvsn, "~> 0.0.12", organization: "nbpr"}|
+      assert Version.match?("0.0.12", "~> 0.0.12")
+      refute Version.match?("0.0.12", "~> 0.1")
+    end
+
+    # Buildroot pins socketcand to a git-describe snapshot. Coerced, it stays
+    # a pre-release, which hex.pm stores but no `~>` requirement ever sees —
+    # so the package's Hex version has to start fresh instead.
+    test "decouples the Hex version when Buildroot's is unpublishable", %{tmp: tmp} do
+      seed_br_cache_pkg!(tmp, "snapshotpkg", "MIT", version: "0.6.1-103-gdeadbee")
+
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["snapshotpkg"]) end)
+      end)
+
+      dir = Path.join(tmp, "packages/nbpr_snapshotpkg")
+      mix_exs = File.read!(Path.join(dir, "mix.exs"))
+      lib = File.read!(Path.join(dir, "lib/nbpr/snapshotpkg.ex"))
+      readme = File.read!(Path.join(dir, "README.md"))
+
+      assert mix_exs =~ ~s|@version "0.1.0"|
+      refute mix_exs =~ "gdeadbee"
+      assert project_version(mix_exs, "SnapshotpkgFixture") == "0.1.0"
+      assert NBPR.Version.validate("0.1.0") == :ok
+
+      assert lib =~ ~s|upstream_version: "0.6.1-103-gdeadbee"|
+      assert readme =~ ~s|{:nbpr_snapshotpkg, "~> 0.1", organization: "nbpr"}|
+
+      # The README still says what it wraps — that's Buildroot's version,
+      # not the one Hex resolves.
+      assert readme =~ "wraps **0.6.1-103-gdeadbee**"
+    end
+
+    test "leaves the versions coupled when Buildroot's is publishable", %{tmp: tmp} do
+      capture_io(fn ->
+        File.cd!(tmp, fn -> Mix.Tasks.Nbpr.New.run(["fixturepkg"]) end)
+      end)
+
+      lib = File.read!(Path.join(tmp, "packages/nbpr_fixturepkg/lib/nbpr/fixturepkg.ex"))
+
+      refute lib =~ "upstream_version:"
+    end
+
     test "raises when BR licence is non-SPDX without --licenses override", %{tmp: tmp} do
       seed_br_cache_pkg!(tmp, "borked", "GPL-2.0+")
 
@@ -394,15 +448,16 @@ defmodule Mix.Tasks.Nbpr.NewTest do
     )
   end
 
-  defp seed_br_cache_pkg!(workspace, name, license) do
+  defp seed_br_cache_pkg!(workspace, name, license, opts \\ []) do
     artifacts = System.get_env("NERVES_ARTIFACTS_DIR")
     cache_dir = Path.join([artifacts, "nbpr", "buildroot", @br_version])
 
     upper = name |> String.upcase() |> String.replace("-", "_")
+    version = Keyword.get(opts, :version, "9.9.9")
 
     seed_pkg_in_cache!(cache_dir, name,
       mk: """
-      #{upper}_VERSION = 9.9.9
+      #{upper}_VERSION = #{version}
       #{upper}_SITE = https://example.com/#{name}
       #{upper}_LICENSE = #{license}
       """,

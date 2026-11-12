@@ -14,11 +14,17 @@ defmodule Mix.Tasks.Nbpr.Pack do
           [--rootfs /path/to/built/rootfs] \\
           [--legal-info /path/to/built/legal-info] \\
           [--build-opts key=value,key2=value2] \\
+          [--upstream-version 0.6.1-103-g6dd5d33] \\
           [-o /output/dir]
 
   Outputs a `<package>-<version>-<system>-<system-version>-<key>.tar.gz` in
   `-o` (defaults to `cwd`). The tarball follows the layout consumed by
   `NBPR.Artifact.Cache.extract!/2`.
+
+  `--upstream-version` belongs only to a package that has decoupled its Hex
+  version from Buildroot's — it joins the cache key and the manifest, and
+  must match the package's `upstream_version:` declaration or the tarball
+  lands under a key nothing will look for. Leave it off otherwise.
 
   Useful for hand-built artefacts (you ran Buildroot yourself) and as a
   building block for the eventual `mix nbpr.build` task.
@@ -29,6 +35,7 @@ defmodule Mix.Tasks.Nbpr.Pack do
   @switches [
     package: :string,
     package_version: :string,
+    upstream_version: :string,
     system: :string,
     system_version: :string,
     target: :string,
@@ -71,7 +78,8 @@ defmodule Mix.Tasks.Nbpr.Pack do
       package_version: package_version,
       system_app: String.to_atom(system),
       system_version: system_version,
-      build_opts: parse_build_opts(opts[:build_opts])
+      build_opts: parse_build_opts(opts[:build_opts]),
+      upstream_version: opts[:upstream_version]
     }
   rescue
     KeyError ->

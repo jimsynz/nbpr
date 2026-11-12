@@ -75,6 +75,11 @@ defmodule NBPR.BrPackage do
                        doc:
                          "Path to a vendored BR external tree. Mutually exclusive with `:br_package`."
                      ],
+                     upstream_version: [
+                       type: :string,
+                       doc:
+                         "Buildroot's literal version string, for a package whose Hex version had to be decoupled from it. Set this only when hex.pm cannot hold the upstream version at all — a git-describe snapshot like `0.6.1-103-g6dd5d33` is the case it exists for. Leave it unset otherwise: the Hex version then *is* the upstream version and a second copy is only something to keep in step. It joins the artefact cache key, so a Buildroot bump invalidates prebuilt artefacts even when the Hex version hasn't moved."
+                     ],
                      description: [
                        type: :string,
                        required: true,
@@ -177,6 +182,7 @@ defmodule NBPR.BrPackage do
       homepage: validated[:homepage],
       br_package: validated[:br_package],
       br_external_path: validated[:br_external_path],
+      upstream_version: validated[:upstream_version],
       build_opts: build_opts_clean,
       build_opt_extensions: build_opt_extensions,
       daemons: daemons,

@@ -28,7 +28,8 @@ defmodule NBPR.Artifact do
           required(:package_version) => String.t(),
           required(:system_app) => atom(),
           required(:system_version) => String.t(),
-          required(:build_opts) => keyword()
+          required(:build_opts) => keyword(),
+          optional(:upstream_version) => String.t() | nil
         }
 
   @cache_key_length 16
@@ -37,6 +38,13 @@ defmodule NBPR.Artifact do
   Returns a 16-character hex digest derived from a SHA-256 over the canonical
   encoding of all inputs. The encoding sorts `build_opts` so that opt order
   doesn't perturb the key.
+
+  `:upstream_version` is absent for every package whose Hex version mirrors
+  upstream, and the encoding omits it entirely when it is — so keys computed
+  before it existed are unchanged, and no published artefact is invalidated
+  by its arrival. A package that *has* decoupled the two needs it: its Hex
+  version can move for an Elixir-only change, and Buildroot's version can
+  move without the Hex one, and only this input tracks the second.
   """
   @spec cache_key(build_inputs()) :: String.t()
   def cache_key(%{} = inputs) do
@@ -110,6 +118,14 @@ defmodule NBPR.Artifact do
       "cache_key" => cache_key(inputs),
       "schema_version" => 1
     }
+    |> put_upstream_version(inputs)
+  end
+
+  defp put_upstream_version(manifest, inputs) do
+    case Map.get(inputs, :upstream_version) do
+      nil -> manifest
+      upstream -> Map.put(manifest, "upstream_version", upstream)
+    end
   end
 
   defp tarball_stem(inputs) do
@@ -118,14 +134,21 @@ defmodule NBPR.Artifact do
   end
 
   defp canonical_encode(inputs) do
-    [
-      inputs.package_name,
-      inputs.package_version,
-      Atom.to_string(inputs.system_app),
-      inputs.system_version,
-      canonical_build_opts(inputs.build_opts)
-    ]
+    ([
+       inputs.package_name,
+       inputs.package_version,
+       Atom.to_string(inputs.system_app),
+       inputs.system_version,
+       canonical_build_opts(inputs.build_opts)
+     ] ++ upstream_version_segment(inputs))
     |> Enum.join("\x00")
+  end
+
+  defp upstream_version_segment(inputs) do
+    case Map.get(inputs, :upstream_version) do
+      nil -> []
+      upstream -> [upstream]
+    end
   end
 
   defp canonical_build_opts(opts) do

@@ -76,14 +76,71 @@ package's *Elixir* source (metadata, daemons, `kernel_modules`) needs a
 version to move.
 
 The way out, when it's needed, is to decouple the Hex version from
-upstream entirely and keep the upstream version in package metadata,
-where `NBPR.Inspector` already renders it. Not a cleverer encoding —
-there isn't one.
+upstream entirely and keep the upstream version in package metadata. Not
+a cleverer encoding — there isn't one. [Decoupling](#decoupling) below is
+that mechanism.
+
+## Decoupling
+
+Some upstream versions aren't awkward, they're unusable. Buildroot pins
+`socketcand` to a git-describe snapshot:
+
+    SOCKETCAND_VERSION = 0.6.1-103-g6dd5d33d4645ab221e8cd265c08607366e21ddf1
+
+No coercion rescues that. Dropping the suffix would claim `0.6.1`, a
+release from 2019 that the artefact is 103 commits past — the silent lie
+`hex_version/1` exists to avoid. Keeping it parses, but as a pre-release,
+which per the table above no `~>` requirement will ever resolve. There is
+no third option: the version has to stop mirroring upstream.
+
+A package declares that by naming Buildroot's literal in its metadata:
+
+```elixir
+use NBPR.BrPackage,
+  version: 1,
+  br_package: "socketcand",
+  upstream_version: "0.6.1-103-g6dd5d33d4645ab221e8cd265c08607366e21ddf1",
+  ...
+```
+
+`@version` in its `mix.exs` is then **nbpr's own**, starting at `0.1.0`,
+and moves on nbpr's terms — which restores the patch slot the rest of the
+catalogue lacks. `mix nbpr.new` emits both halves when it reads a version
+hex.pm can't hold, so there's nothing to assemble by hand.
+
+### What the upstream version still does
+
+It joins the **artefact cache key**. That isn't decoration: a decoupled
+package's Hex version can sit perfectly still while Buildroot moves to a
+newer snapshot, and without this input the key wouldn't move either and a
+stale tarball would be served for new sources. It is also recorded in the
+artefact's `manifest.json` and rendered by `mix nbpr.inspect`.
+
+It deliberately stays *out* of the tarball name and the OCI tag, which
+keep using the Hex version — those are handles, and a 48-character
+git-describe string in them buys nothing a manifest reader can't get.
+
+The input is optional, and omitted from the key's encoding when absent, so
+every artefact published before decoupling existed keeps its key.
+
+### The cost
+
+Two versions to bump instead of one, and Renovate can't help with the
+second: its versioning schemes can't order a git-describe string, and the
+`buildroot-package` datasource's regex captures only the leading
+`[\d.]+`, which would silently report `0.6.1`. A decoupled package
+therefore gets **no Renovate manager** — when Buildroot moves, bump
+`upstream_version:` and `@version` together by hand.
+
+Reach for this only when the alternative is not shipping the package.
+Mirroring upstream is what makes a `:nbpr_*` version mean something
+without looking it up.
 
 ## Adding a package with an awkward version
 
 Nothing to do. `mix nbpr.new` writes Buildroot's literal into `@version`
 and generates the coercion alongside it. If upstream's shape isn't one of
-the rows above, the workspace test fails with the reason and the coercion
-needs a new rule in `NBPR.Version` — not a hand-edited version in the
-package.
+the rows above, the generator decouples the two as described above — and
+if it's a shape that *should* coerce but doesn't, the workspace test fails
+with the reason and the coercion needs a new rule in `NBPR.Version`, not a
+hand-edited version in the package.

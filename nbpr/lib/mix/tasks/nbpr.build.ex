@@ -86,7 +86,8 @@ defmodule Mix.Tasks.Nbpr.Build do
       package_version: package_version!(package_app),
       system_app: system_app,
       system_version: system_version,
-      build_opts: build_opts
+      build_opts: build_opts,
+      upstream_version: pkg.upstream_version
     }
 
     tarball =
