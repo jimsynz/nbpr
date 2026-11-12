@@ -20,6 +20,14 @@ defmodule NBPR.BrPackageTest do
       ]
   end
 
+  defmodule DecoupledVersion do
+    use NBPR.BrPackage,
+      version: 1,
+      br_package: "socketcand",
+      upstream_version: "0.6.1-103-gdeadbee",
+      description: "test package whose Hex version is decoupled from upstream's"
+  end
+
   defmodule TestWithDaemon do
     use NBPR.BrPackage,
       version: 1,
@@ -320,6 +328,25 @@ defmodule NBPR.BrPackageTest do
 
       assert NBPR.BrPackageTest.GoodRuntimeEnv.__nbpr_package__().runtime_env ==
                [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}]
+    end
+  end
+
+  describe "upstream_version" do
+    test "defaults to nil, because the Hex version normally is the upstream one" do
+      assert TestDaemonless.__nbpr_package__().upstream_version == nil
+    end
+
+    test "carries Buildroot's literal when the package declares one" do
+      assert DecoupledVersion.__nbpr_package__().upstream_version == "0.6.1-103-gdeadbee"
+    end
+
+    test "rejects a non-string" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        NBPR.BrPackage.build_metadata!(
+          [version: 1, br_package: "x", description: "d", upstream_version: 123],
+          Nope
+        )
+      end
     end
   end
 end

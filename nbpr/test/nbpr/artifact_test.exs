@@ -40,6 +40,30 @@ defmodule NBPR.ArtifactTest do
       assert NBPR.Artifact.cache_key(@inputs) != NBPR.Artifact.cache_key(flipped)
     end
 
+    # The whole point of the input being optional: it arrived after artefacts
+    # were already published, and a key that shifted under them would have
+    # orphaned every one.
+    test "is unchanged by an absent or nil upstream_version" do
+      key = NBPR.Artifact.cache_key(@inputs)
+
+      assert NBPR.Artifact.cache_key(Map.put(@inputs, :upstream_version, nil)) == key
+    end
+
+    test "differs once an upstream_version is declared" do
+      decoupled = Map.put(@inputs, :upstream_version, "0.6.1-103-gdeadbee")
+
+      assert NBPR.Artifact.cache_key(@inputs) != NBPR.Artifact.cache_key(decoupled)
+    end
+
+    # A decoupled package's Hex version can sit still across a Buildroot bump,
+    # so this input is the only thing that stops a stale artefact being served.
+    test "differs when upstream_version moves and package_version doesn't" do
+      before = Map.put(@inputs, :upstream_version, "0.6.1-103-gdeadbee")
+      later = Map.put(@inputs, :upstream_version, "0.6.1-117-gbadf00d")
+
+      assert NBPR.Artifact.cache_key(before) != NBPR.Artifact.cache_key(later)
+    end
+
     test "is 16 hex characters long" do
       key = NBPR.Artifact.cache_key(@inputs)
       assert String.length(key) == 16
@@ -92,6 +116,26 @@ defmodule NBPR.ArtifactTest do
       assert m["build_opts"] == %{"oniguruma" => true}
       assert m["cache_key"] == NBPR.Artifact.cache_key(@inputs)
       assert m["schema_version"] == 1
+    end
+
+    test "carries no upstream_version key when there is none to carry" do
+      refute Map.has_key?(NBPR.Artifact.manifest(@inputs), "upstream_version")
+    end
+
+    test "records the upstream version when the package declares one" do
+      decoupled = Map.put(@inputs, :upstream_version, "0.6.1-103-gdeadbee")
+
+      assert NBPR.Artifact.manifest(decoupled)["upstream_version"] == "0.6.1-103-gdeadbee"
+    end
+
+    # The artefact's name is a human-facing handle and an OCI tag component;
+    # a git-describe string in there would be long and say nothing a reader
+    # of the manifest can't get.
+    test "keeps the Hex version in the tarball name even when decoupled" do
+      decoupled = Map.put(@inputs, :upstream_version, "0.6.1-103-gdeadbee")
+
+      assert NBPR.Artifact.tarball_name(decoupled) =~ "nbpr_jq-0.1.0-"
+      refute NBPR.Artifact.tarball_name(decoupled) =~ "gdeadbee"
     end
 
     test "build_opts atoms are stringified for JSON" do

@@ -33,11 +33,19 @@ defmodule NBPR.Inspector do
       "Module:         #{inspect(pkg.module)}",
       "Schema version: #{pkg.version}",
       "BR source:      #{br_source(pkg)}",
+      upstream_version_line(pkg),
       "Description:    #{pkg.description}",
       "Homepage:       #{pkg.homepage || "(none)"}"
     ]
+    |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
   end
+
+  # Only shown when it says something the package version doesn't already.
+  defp upstream_version_line(%Package{upstream_version: nil}), do: nil
+
+  defp upstream_version_line(%Package{upstream_version: upstream}),
+    do: "Upstream:       #{upstream} (Hex version is decoupled)"
 
   defp br_source(%{br_package: pkg}) when is_binary(pkg), do: "#{pkg} (mainline Buildroot)"
   defp br_source(%{br_external_path: path}) when is_binary(path), do: "#{path} (vendored)"

@@ -245,6 +245,16 @@ You don't tag or publish manually.
   nbpr-side rebuild, and the padded `2.91.1` case is the exception rather
   than the rule.
 
+- **Buildroot pinning a git snapshot** (`socketcand` is
+  `0.6.1-103-g6dd5d33`) is past what any coercion can fix, so the
+  generator decouples the two versions instead: `@version` starts at
+  `0.1.0` and Buildroot's literal goes into the module's
+  `upstream_version:`, which is what the artefact cache key then tracks.
+  The generator says so when it does it. Such a package gets no Renovate
+  manager — Renovate can't order a version of that shape — so bump both
+  by hand when Buildroot moves. `:nbpr_socketcand` is the worked example;
+  [Decoupling](../reference/versioning.md#decoupling) is the reasoning.
+
 - **Buildroot package names with hyphens** (e.g. `kernel-modules`) map
   to underscored module names (`NBPR.KernelModules`) and underscored
   Hex package names (`nbpr_kernel_modules`). The generator handles the

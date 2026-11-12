@@ -179,7 +179,8 @@ defmodule Mix.Tasks.Nbpr.Fetch do
       package_version: package_version,
       system_app: system_app,
       system_version: system_version,
-      build_opts: resolve_build_opts(pkg, app)
+      build_opts: resolve_build_opts(pkg, app),
+      upstream_version: pkg.upstream_version
     }
 
     unless Cache.valid?(inputs) do

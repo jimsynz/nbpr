@@ -50,6 +50,10 @@ defmodule Mix.Tasks.Nbpr.New do
   alias NBPR.Buildroot.Source
   alias NBPR.Spdx
 
+  # Where a package's Hex version starts when it has to be decoupled from
+  # Buildroot's. Nothing is published yet, so 0.1.0 is free.
+  @decoupled_start_version "0.1.0"
+
   @switches [no_lookup: :boolean, br_package: :string, licenses: :string, yes: :boolean]
   @aliases [y: :yes]
 
@@ -398,7 +402,8 @@ defmodule Mix.Tasks.Nbpr.New do
         %BrPackage{} = pkg ->
           "Pre-filled from Buildroot: version #{pkg.version}, " <>
             "licences #{Enum.join(pkg.licences, ", ")}. " <>
-            "Review lib/nbpr/#{short}.ex and tighten the description if needed."
+            "Review lib/nbpr/#{short}.ex and tighten the description if needed." <>
+            decoupled_note(pkg)
       end
 
     Mix.shell().info("""
@@ -413,6 +418,22 @@ defmodule Mix.Tasks.Nbpr.New do
         mix deps.get
         mix test
     """)
+  end
+
+  defp decoupled_note(%BrPackage{} = pkg) do
+    if decoupled_version?(pkg) do
+      """
+
+
+      hex.pm cannot hold #{pkg.version}, so this package's Hex version is \
+      decoupled from Buildroot's: @version starts at #{@decoupled_start_version} and \
+      Buildroot's literal is declared as upstream_version:, which the artefact \
+      cache key then tracks. Bump both by hand when Buildroot moves — Renovate \
+      cannot order a version of this shape. See docs/reference/versioning.md.\
+      """
+    else
+      ""
+    end
   end
 
   defp formatter_exs do
@@ -486,17 +507,54 @@ defmodule Mix.Tasks.Nbpr.New do
         list -> "\nLicences: #{Enum.join(list, ", ")}.\n"
       end
 
-    {tagline, hex_requirement(pkg.version), licence_line}
+    hex_version = if decoupled_version?(pkg), do: @decoupled_start_version, else: pkg.version
+
+    {tagline, hex_requirement(hex_version), licence_line}
   end
 
   # Hex `~> X.Y` matches `>= X.Y, < X+1.0`, so we advertise the major
   # series the published version belongs to. For `0.x` we widen to
   # `~> 0.1` since pre-1.0 has weaker compatibility guarantees.
+  #
+  # `0.0.z` is the exception: `~> 0.1` starts at 0.1.0 and so matches no
+  # 0.0.z at all, which would put an unsatisfiable requirement in the
+  # README. There the whole patch component is the series (libsocketcan
+  # has been 0.0.x since 2012).
   defp hex_requirement(version) do
     case String.split(version, ".") do
+      ["0", "0", patch | _] -> "~> 0.0.#{patch}"
       ["0", _ | _] -> "~> 0.1"
       [major, _ | _] -> "~> #{major}.0"
       _ -> "~> 0.1"
+    end
+  end
+
+  # Buildroot occasionally pins a version hex.pm cannot hold at all — a
+  # git-describe snapshot such as `0.6.1-103-g6dd5d33`, which parses as a
+  # pre-release and so is invisible to every `~>` requirement. There the
+  # package's Hex version starts fresh at 0.1.0 and Buildroot's literal moves
+  # into `upstream_version:`, which is what the cache key then tracks.
+  # `docs/reference/versioning.md` is the long version.
+  defp decoupled_version?(%BrPackage{version: version}) do
+    NBPR.Version.validate(NBPR.Version.hex_version(version)) != :ok
+  end
+
+  # The shared coercion block the generator emits below says Renovate writes
+  # Buildroot's version into `@version`, which is true of every package but a
+  # decoupled one. Say so where the reader meets the attribute rather than
+  # rewording a block that 40-odd other packages carry verbatim.
+  defp version_note(nil), do: ""
+
+  defp version_note(%BrPackage{} = pkg) do
+    if decoupled_version?(pkg) do
+      """
+        # This package's Hex version is nbpr's own. Buildroot pins a git-describe
+        # snapshot that hex.pm will not take, so the two are decoupled and the
+        # upstream literal lives in the package module's `upstream_version:`.
+        # Bump both together when Buildroot moves; see docs/reference/versioning.md.
+      """
+    else
+      ""
     end
   end
 
@@ -508,7 +566,7 @@ defmodule Mix.Tasks.Nbpr.New do
     defmodule #{project_module} do
       use Mix.Project
 
-      @version "#{version}"
+    #{version_note(metadata)}  @version "#{version}"
 
       def project do
         [
@@ -592,8 +650,12 @@ defmodule Mix.Tasks.Nbpr.New do
 
     # `@version` carries Buildroot's version verbatim, which is what Renovate
     # will keep writing there. The generated `normalise_version/1` coerces it
-    # to Hex's shape at project-eval time, so the two never disagree.
-    {pkg.version, description, inspect(links), pkg.licences}
+    # to Hex's shape at project-eval time, so the two never disagree. Unless
+    # Buildroot's version is one Hex can't hold at all, in which case the two
+    # are decoupled and this is nbpr's own version from here on.
+    version = if decoupled_version?(pkg), do: @decoupled_start_version, else: pkg.version
+
+    {version, description, inspect(links), pkg.licences}
   end
 
   defp package_module_ex(module, br_package_name, nil, github_repo) do
@@ -618,6 +680,11 @@ defmodule Mix.Tasks.Nbpr.New do
     homepage_line =
       if pkg.homepage, do: "    homepage: #{inspect(pkg.homepage)},\n", else: ""
 
+    upstream_line =
+      if decoupled_version?(pkg),
+        do: "    upstream_version: #{inspect(pkg.version)},\n",
+        else: ""
+
     moduledoc = build_moduledoc(br_package_name, pkg)
 
     """
@@ -629,7 +696,7 @@ defmodule Mix.Tasks.Nbpr.New do
       use NBPR.BrPackage,
         version: 1,
         br_package: #{inspect(br_package_name)},
-        description: #{inspect(pkg.description)},
+    #{upstream_line}    description: #{inspect(pkg.description)},
     #{homepage_line}    artifact_sites: [{:ghcr, "ghcr.io/#{github_repo}"}]
     end
     """

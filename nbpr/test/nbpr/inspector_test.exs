@@ -35,6 +35,14 @@ defmodule NBPR.InspectorTest do
       runtime_env: [{"XTABLES_LIBDIR", "${NBPR_PRIV}/usr/lib/xtables"}]
   end
 
+  defmodule Decoupled do
+    use NBPR.BrPackage,
+      version: 1,
+      br_package: "socketcand",
+      upstream_version: "0.6.1-103-gdeadbee",
+      description: "CAN over TCP"
+  end
+
   describe "format/1" do
     test "renders header for daemonless package" do
       output = Daemonless.__nbpr_package__() |> NBPR.Inspector.format()
@@ -110,6 +118,22 @@ defmodule NBPR.InspectorTest do
       output = WithSites.__nbpr_package__() |> NBPR.Inspector.format()
       assert output =~ "Artifact sites:"
       assert output =~ "github_releases: jimsynz/nbpr"
+    end
+  end
+
+  describe "upstream version" do
+    test "is shown when the package's Hex version is decoupled from it" do
+      output = Decoupled.__nbpr_package__() |> NBPR.Inspector.format()
+
+      assert output =~ "Upstream:       0.6.1-103-gdeadbee (Hex version is decoupled)"
+    end
+
+    # For the other 40-odd packages the line would only restate the version
+    # the reader already has.
+    test "is left out when there is nothing to disambiguate" do
+      output = Daemonless.__nbpr_package__() |> NBPR.Inspector.format()
+
+      refute output =~ "Upstream:"
     end
   end
 end
