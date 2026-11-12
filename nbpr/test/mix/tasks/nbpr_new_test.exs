@@ -269,7 +269,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", organization: "nbpr"}|
       assert readme =~ "Licence: MIT."
       assert readme =~ "mix hex.organization auth nbpr"
-      assert readme =~ "https://hexdocs.pm/nbpr/getting-started.html"
+      assert readme =~ "https://nbpr.hexdocs.pm/getting-started.html"
     end
 
     # `~> 0.1` starts at 0.1.0, so advertising it for a 0.0.z package would

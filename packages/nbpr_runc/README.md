@@ -23,7 +23,7 @@ Run `mix deps.get`, then `mix firmware`. The full consumer flow —
 including the `firmware:` alias that pulls binaries ahead of the
 firmware build, and supervision-tree wiring for daemon-bearing
 packages — lives in the [NBPR Getting Started
-guide](https://hexdocs.pm/nbpr/getting-started.html). The fastest
+guide](https://nbpr.hexdocs.pm/getting-started.html). The fastest
 path to a working setup is `mix igniter.install nbpr`.
 
 Source: <https://github.com/jimsynz/nbpr>.
@@ -55,5 +55,6 @@ to fork the system or open a PR upstream to enable them.
 
 `runc` is a CLI tool, not a daemon. There is no generated supervisor
 child spec — invoke `runc` directly (typically through a higher-level
-runtime such as [`containerd`](https://hexdocs.pm/nbpr_containerd)).
+runtime such as
+[`containerd`](https://hex.pm/packages/nbpr/nbpr_containerd)).
 

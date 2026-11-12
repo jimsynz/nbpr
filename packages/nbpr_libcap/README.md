@@ -23,7 +23,7 @@ Run `mix deps.get`, then `mix firmware`. The full consumer flow —
 including the `firmware:` alias that pulls binaries ahead of the
 firmware build, and supervision-tree wiring for daemon-bearing
 packages — lives in the [NBPR Getting Started
-guide](https://hexdocs.pm/nbpr/getting-started.html). The fastest
+guide](https://nbpr.hexdocs.pm/getting-started.html). The fastest
 path to a working setup is `mix igniter.install nbpr`.
 
 Usually you won't add this directly — it arrives as a dependency of a

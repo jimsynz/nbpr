@@ -122,5 +122,5 @@ You now have a working NBPR-backed Nerves device.
 - **[How NBPR composes with Buildroot](../explanation/packaging-model.md)** —
   the runtime model: prebuilt artefacts, source-build fallback, daemon
   supervision, kernel-module loading.
-- **`NBPR.BrPackage`** in the [API reference](https://hexdocs.pm/nbpr) —
+- **`NBPR.BrPackage`** in the [API reference](https://nbpr.hexdocs.pm) —
   if you want to understand the macro every package uses.

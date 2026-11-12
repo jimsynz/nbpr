@@ -15,23 +15,23 @@ In a Nerves project:
 
 Then add the binary packages you need to `mix.exs` and run `mix firmware`
 as usual. The full consumer flow, including a step-by-step worked example,
-lives in the [Getting Started tutorial](https://hexdocs.pm/nbpr/getting-started.html).
+lives in the [Getting Started tutorial](https://nbpr.hexdocs.pm/getting-started.html).
 
 ## Documentation
 
-The doc site at [hexdocs.pm/nbpr](https://hexdocs.pm/nbpr) is organised by
+The doc site at [nbpr.hexdocs.pm](https://nbpr.hexdocs.pm) is organised by
 intent ([Diátaxis](https://diataxis.fr/)):
 
 - **Tutorials** — learning-oriented walkthroughs.
-  [Getting started](https://hexdocs.pm/nbpr/getting-started.html) takes
+  [Getting started](https://nbpr.hexdocs.pm/getting-started.html) takes
   you from a fresh Nerves project to a device with `jq` working.
 - **How-to guides** — task-oriented recipes. Currently:
-  [Add a Buildroot package to NBPR](https://hexdocs.pm/nbpr/add-a-buildroot-package.html).
-- **Reference** — the [catalogue](https://hexdocs.pm/nbpr/catalogue.html)
+  [Add a Buildroot package to NBPR](https://nbpr.hexdocs.pm/add-a-buildroot-package.html).
+- **Reference** — the [catalogue](https://nbpr.hexdocs.pm/catalogue.html)
   of available binary packages, plus moduledocs and Mix-task docs in the
   API reference.
-- **Explanation** — [Why NBPR exists](https://hexdocs.pm/nbpr/why-nbpr.html)
-  and [How NBPR composes with Buildroot](https://hexdocs.pm/nbpr/packaging-model.html).
+- **Explanation** — [Why NBPR exists](https://nbpr.hexdocs.pm/why-nbpr.html)
+  and [How NBPR composes with Buildroot](https://nbpr.hexdocs.pm/packaging-model.html).
 
 ## Contributing
 

@@ -477,7 +477,7 @@ defmodule Mix.Tasks.Nbpr.New do
     including the `firmware:` alias that pulls binaries ahead of the
     firmware build, and supervision-tree wiring for daemon-bearing
     packages — lives in the [NBPR Getting Started
-    guide](https://hexdocs.pm/nbpr/getting-started.html). The fastest
+    guide](https://nbpr.hexdocs.pm/getting-started.html). The fastest
     path to a working setup is `mix igniter.install nbpr`.
 
     Source: <https://github.com/#{github_repo}>.
