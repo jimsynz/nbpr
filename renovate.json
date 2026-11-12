@@ -319,6 +319,48 @@
     },
     {
       "customType": "regex",
+      "description": "nbpr_can_utils @version \u2192 Buildroot's `CAN_UTILS_VERSION` line at the pinned BR_REF. can-utils versions by calendar year (`2025.01`), so the Hex major is the year and the minor is the month with its leading zero stripped by `normalise_version/1`.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_can_utils/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "can-utils",
+      "packageNameTemplate": "can-utils",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_libsocketcan @version \u2192 Buildroot's `LIBSOCKETCAN_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_libsocketcan/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "libsocketcan",
+      "packageNameTemplate": "libsocketcan",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "nbpr_cannelloni @version \u2192 Buildroot's `CANNELLONI_VERSION` line at the pinned BR_REF.",
+      "managerFilePatterns": [
+        "/^packages/nbpr_cannelloni/mix\\.exs$/"
+      ],
+      "matchStrings": [
+        "@version\\s+\"(?<currentValue>[0-9]+(?:\\.[0-9]+){1,2})\""
+      ],
+      "depNameTemplate": "cannelloni",
+      "packageNameTemplate": "cannelloni",
+      "datasourceTemplate": "custom.buildroot-package",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "BR_REF in this very renovate.json — points the buildroot-package datasource at the right Buildroot release. Tracks nerves_system_br/main's NERVES_BR_VERSION via the nerves-system-br-buildroot-version custom datasource. Regex only matches digit-dot refs (not `main` or branch names), so it leaves the nerves-system-br-buildroot-version URL alone.",
       "managerFilePatterns": [
         "/^renovate\\.json$/"
