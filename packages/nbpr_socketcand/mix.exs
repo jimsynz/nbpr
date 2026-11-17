@@ -5,7 +5,7 @@ defmodule Nbpr.Socketcand.MixProject do
   # snapshot that hex.pm will not take, so the two are decoupled and the
   # upstream literal lives in the package module's `upstream_version:`.
   # Bump both together when Buildroot moves; see docs/reference/versioning.md.
-  @version "0.1.0"
+  @version "0.1.1"
 
   def project do
     [
@@ -33,7 +33,7 @@ defmodule Nbpr.Socketcand.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2"),
+      nbpr_dep(:nbpr, "~> 0.6"),
       nbpr_dep(:nbpr_libsocketcan, "~> 0.0.12")
     ]
   end
