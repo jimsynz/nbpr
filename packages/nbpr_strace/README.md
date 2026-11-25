@@ -9,7 +9,7 @@
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_strace, "~> 6.0", organization: "nbpr"}
+    {:nbpr_strace, "~> 6.0"}
 
 Run `mix deps.get`, then `mix firmware` — the binary lands at
 `<release>/lib/nbpr_strace-<vsn>/priv/usr/...` and `NBPR.Application`

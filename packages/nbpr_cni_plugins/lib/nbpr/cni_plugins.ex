@@ -3,7 +3,7 @@ defmodule NBPR.CniPlugins do
   NBPR package for the [reference CNI
   plugins](https://github.com/containernetworking/plugins) — the standard
   set of network plugins that container runtimes (e.g.
-  [`containerd`](https://hex.pm/packages/nbpr/nbpr_containerd)) invoke
+  [`containerd`](https://hex.pm/packages/nbpr_containerd)) invoke
   through the Container Network Interface spec to attach containers to
   networks.
 

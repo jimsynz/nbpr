@@ -13,7 +13,6 @@ defmodule Nbpr.Kmod.MixProject do
       description:
         "Kernel module tools (`insmod`, `modprobe`, `depmod`) and `libkmod` packaged for Nerves",
       package: [
-        organization: "nbpr",
         licenses: ["LGPL-2.1-or-later", "GPL-2.0-or-later"],
         links: %{
           "kmod" => "https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git",
@@ -29,24 +28,16 @@ defmodule Nbpr.Kmod.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2")
+      nbpr_dep(:nbpr, "~> 0.7")
     ]
   end
 
   # Path dep for local dev (sibling in the workspace); Hex requirement
-  # when publishing. Hex publish forbids path deps, so we switch the spec
-  # only when the workflow asks for it. `:nbpr` itself lives on public
-  # hex.pm; `:nbpr_*` packages live in the `nbpr` Hex org.
-  defp nbpr_dep(:nbpr = name, requirement) do
-    case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement}
-      _ -> {name, path: nbpr_dep_path(name)}
-    end
-  end
-
+  # when publishing. Hex publish forbids path deps, so we switch the
+  # spec only when the workflow asks for it.
   defp nbpr_dep(name, requirement) do
     case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement, organization: "nbpr"}
+      "1" -> {name, requirement}
       _ -> {name, path: nbpr_dep_path(name)}
     end
   end

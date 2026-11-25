@@ -10,15 +10,9 @@ Licence: GPL-2.0-or-later.
 
 ## Usage
 
-Authenticate to the `nbpr` Hex organisation once per machine (the
-read key is intentionally public — it gates discoverability of the
-org's binary packages, not access to private content):
+Add this package to your Nerves project's `mix.exs`:
 
-    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
-
-Then add this package to your Nerves project's `mix.exs`:
-
-    {:nbpr_fftw_single, "~> 3.0", organization: "nbpr"}
+    {:nbpr_fftw_single, "~> 3.0"}
 
 Run `mix deps.get`, then `mix firmware`. The full consumer flow —
 including the `firmware:` alias that pulls binaries ahead of the
@@ -42,8 +36,8 @@ follows that split. Pick by which library your code links:
 The two don't conflict. Code that links both — as Eigen's FFT bindings
 do — wants both packages in the firmware:
 
-    {:nbpr_fftw_single, "~> 3.0", organization: "nbpr"},
-    {:nbpr_fftw_double, "~> 3.0", organization: "nbpr"}
+    {:nbpr_fftw_single, "~> 3.0"},
+    {:nbpr_fftw_double, "~> 3.0"}
 
 If you just want "FFTW" and aren't sure, take double precision: it's
 what `-lfftw3` and the plain `fftw_*` API refer to, and it's the

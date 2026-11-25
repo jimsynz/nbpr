@@ -9,7 +9,7 @@
 
 In your Nerves project's `mix.exs`:
 
-    {:nbpr_tcpdump, "~> 4.0", organization: "nbpr"}
+    {:nbpr_tcpdump, "~> 4.0"}
 
 Run `mix deps.get`, then `mix firmware` — the binary lands at
 `<release>/lib/nbpr_tcpdump-<vsn>/priv/usr/...` and `NBPR.Application`
