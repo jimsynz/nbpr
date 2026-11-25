@@ -1,8 +1,8 @@
 # How to add a Buildroot package to NBPR
 
 This guide takes you from "I want some upstream binary in my Nerves
-rootfs" to "the binary is published as `:nbpr_<name>` in the `nbpr` Hex
-organisation". It assumes you know what Nerves and Buildroot are, can
+rootfs" to "the binary is published to hex.pm as `:nbpr_<name>`". It
+assumes you know what Nerves and Buildroot are, can
 build a Nerves firmware, and have a clone of this repo.
 
 If the package isn't in upstream Buildroot mainline, this flow won't
@@ -201,8 +201,7 @@ Once your PR lands on `main`:
    package's local `@version` is ahead of Hex (because it's brand-new
    on Hex), creates a `nbpr_<name>-v<version>` tag, and dispatches the
    release workflow.
-3. The release workflow publishes the package to the `nbpr` Hex
-   organisation.
+3. The release workflow publishes the package to hex.pm.
 
 You don't tag or publish manually.
 

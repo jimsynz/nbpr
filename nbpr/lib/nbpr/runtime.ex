@@ -167,7 +167,7 @@ defmodule NBPR.Runtime do
     priv_dir(@kmod_tools_app) ||
       raise "#{tool} is unavailable: loading a package-shipped kernel module needs " <>
               "the kmod tools, which stock Nerves systems don't include. Add the " <>
-              ~s(:nbpr_kmod package \(organization: "nbpr"\) to your deps.)
+              "`:nbpr_kmod` package to your deps."
   end
 
   defp lib_path(priv) do

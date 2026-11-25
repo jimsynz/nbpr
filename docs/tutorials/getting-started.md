@@ -33,15 +33,12 @@ dependencies. We'll layer NBPR on top.
 
     mix igniter.install nbpr
 
-This does three things in one shot:
+This does two things in one shot:
 
-- Adds `{:nbpr, "~> 0.2"}` to your project's `deps/0`.
+- Adds `{:nbpr, "~> 0.7"}` to your project's `deps/0`.
 - Adds `firmware: ["nbpr.fetch", "firmware"]` to your project's
   `aliases/0`, so `mix firmware` runs `mix nbpr.fetch` first to pull
   prebuilt binaries from GHCR.
-- Authenticates your local Hex client to the `nbpr` Hex organisation
-  using its publicly-shared read key, so subsequent `mix deps.get`
-  calls can fetch `:nbpr_*` packages.
 
 Igniter shows you the diff and asks for confirmation. Accept it.
 
@@ -53,17 +50,12 @@ Open `mix.exs` and add `:nbpr_jq` to your deps:
 defp deps do
   [
     {:nerves, "~> 1.10", runtime: false},
-    {:nbpr, "~> 0.2"},
-    {:nbpr_jq, "~> 1.0", organization: "nbpr"},
+    {:nbpr, "~> 0.7"},
+    {:nbpr_jq, "~> 1.8"},
     # ... whatever else mix nerves.new generated
   ]
 end
 ```
-
-Note the `organization: "nbpr"` clause on `:nbpr_jq`. The library
-itself lives on public hex.pm, but the binary packages are scoped to
-the `nbpr` organisation — that's the gate `mix igniter.install`
-authenticated you against in step 2.
 
 ## Step 4: build the firmware
 

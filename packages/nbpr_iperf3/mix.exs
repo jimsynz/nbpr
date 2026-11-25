@@ -12,7 +12,6 @@ defmodule Nbpr.Iperf3.MixProject do
       deps: deps(),
       description: "Iperf is a tool for active measurements of the maximum achievable bandwidth on IP networks.",
       package: [
-        organization: "nbpr",
         licenses: ["BSD-3-Clause", "BSD-2-Clause", "MIT"],
         links: %{"GitHub" => "https://github.com/jimsynz/nbpr", "iperf3" => "http://software.es.net/iperf/index.html"}
       ]
@@ -25,24 +24,16 @@ defmodule Nbpr.Iperf3.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2")
+      nbpr_dep(:nbpr, "~> 0.7")
     ]
   end
 
   # Path dep for local dev (sibling in the workspace); Hex requirement
-  # when publishing. Hex publish forbids path deps, so we switch the spec
-  # only when the workflow asks for it. `:nbpr` itself lives on public
-  # hex.pm; `:nbpr_*` packages live in the `nbpr` Hex org.
-  defp nbpr_dep(:nbpr = name, requirement) do
-    case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement}
-      _ -> {name, path: nbpr_dep_path(name)}
-    end
-  end
-
+  # when publishing. Hex publish forbids path deps, so we switch the
+  # spec only when the workflow asks for it.
   defp nbpr_dep(name, requirement) do
     case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement, organization: "nbpr"}
+      "1" -> {name, requirement}
       _ -> {name, path: nbpr_dep_path(name)}
     end
   end

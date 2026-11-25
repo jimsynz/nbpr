@@ -83,10 +83,9 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       contents = File.read!(Path.join(tmp, "packages/nbpr_containerd/mix.exs"))
 
       assert contents =~ "app: :nbpr_containerd"
-      assert contents =~ ~s|nbpr_dep(:nbpr, "~> 0.2")|
-      assert contents =~ "defp nbpr_dep(:nbpr = name, requirement)"
+      assert contents =~ ~s|nbpr_dep(:nbpr, "~> 0.7")|
       assert contents =~ "defp nbpr_dep(name, requirement)"
-      assert contents =~ ~s|organization: "nbpr"|
+      refute contents =~ "organization:"
       assert contents =~ "NBPR_RELEASE"
     end
   end
@@ -266,9 +265,9 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert readme =~ "> Fixturepkg does the thing well."
       assert readme =~ "[`fixturepkg`](https://example.com/fixturepkg)"
       assert readme =~ "wraps **1.2.3**"
-      assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0", organization: "nbpr"}|
+      assert readme =~ ~s|{:nbpr_fixturepkg, "~> 1.0"}|
       assert readme =~ "Licence: MIT."
-      assert readme =~ "mix hex.organization auth nbpr"
+      refute readme =~ "organization"
       assert readme =~ "https://nbpr.hexdocs.pm/getting-started.html"
     end
 
@@ -283,7 +282,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
 
       readme = File.read!(Path.join(tmp, "packages/nbpr_tinyvsn/README.md"))
 
-      assert readme =~ ~s|{:nbpr_tinyvsn, "~> 0.0.12", organization: "nbpr"}|
+      assert readme =~ ~s|{:nbpr_tinyvsn, "~> 0.0.12"}|
       assert Version.match?("0.0.12", "~> 0.0.12")
       refute Version.match?("0.0.12", "~> 0.1")
     end
@@ -309,7 +308,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
       assert NBPR.Version.validate("0.1.0") == :ok
 
       assert lib =~ ~s|upstream_version: "0.6.1-103-gdeadbee"|
-      assert readme =~ ~s|{:nbpr_snapshotpkg, "~> 0.1", organization: "nbpr"}|
+      assert readme =~ ~s|{:nbpr_snapshotpkg, "~> 0.1"}|
 
       # The README still says what it wraps — that's Buildroot's version,
       # not the one Hex resolves.
@@ -383,7 +382,7 @@ defmodule Mix.Tasks.Nbpr.NewTest do
 
       mix_exs = File.read!(Path.join(tmp, "packages/nbpr_needslib/mix.exs"))
 
-      assert mix_exs =~ ~s|nbpr_dep(:nbpr, "~> 0.2")|
+      assert mix_exs =~ ~s|nbpr_dep(:nbpr, "~> 0.7")|
       assert mix_exs =~ ~s|nbpr_dep(:nbpr_siblingpkg, "~> 1.0")|
     end
 

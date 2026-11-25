@@ -4,8 +4,12 @@ The library underpinning the [NBPR](https://github.com/jimsynz/nbpr)
 (Nerves Binary Package Repository) ecosystem — a curated Hex repo for
 distributing Buildroot-built target binaries to Nerves firmware
 projects. `:nbpr` itself ships only the macros, Mix tasks, and
-resolver machinery; the binaries live in sibling `:nbpr_*` packages
-published to the `nbpr` Hex organisation.
+resolver machinery; the binaries live in sibling `:nbpr_*` packages,
+also on hex.pm.
+
+If your project still declares `organization: "nbpr"` on its deps, see
+[Moving off the `nbpr` Hex
+organisation](https://github.com/jimsynz/nbpr#moving-off-the-nbpr-hex-organisation).
 
 ## Quickstart
 

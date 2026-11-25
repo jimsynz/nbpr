@@ -44,19 +44,6 @@ defmodule Mix.Tasks.Nbpr.InstallTest do
     end
   end
 
-  describe "post-install tasks" do
-    test "queues `mix hex.organization auth nbpr` with the public read key" do
-      igniter =
-        test_project()
-        |> Igniter.compose_task("nbpr.install", [])
-
-      assert Enum.any?(igniter.tasks, fn
-               {"hex.organization", ["auth", "nbpr", "--key", _key]} -> true
-               _ -> false
-             end)
-    end
-  end
-
   defp mix_exs_with(nil) do
     """
     defmodule Test.MixProject do

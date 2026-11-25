@@ -12,7 +12,6 @@ defmodule Nbpr.Libpng.MixProject do
       deps: deps(),
       description: "Library for reading and writing PNG images",
       package: [
-        organization: "nbpr",
         licenses: ["libpng-2.0"],
         links: %{
           "GitHub" => "https://github.com/jimsynz/nbpr",
@@ -28,24 +27,16 @@ defmodule Nbpr.Libpng.MixProject do
 
   defp deps do
     [
-      nbpr_dep(:nbpr, "~> 0.2")
+      nbpr_dep(:nbpr, "~> 0.7")
     ]
   end
 
   # Path dep for local dev (sibling in the workspace); Hex requirement
   # when publishing. Hex publish forbids path deps, so we switch the
-  # spec only when the workflow asks for it. `:nbpr` itself lives on
-  # public hex.pm; `:nbpr_*` packages live in the `nbpr` Hex org.
-  defp nbpr_dep(:nbpr = name, requirement) do
-    case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement}
-      _ -> {name, path: nbpr_dep_path(name)}
-    end
-  end
-
+  # spec only when the workflow asks for it.
   defp nbpr_dep(name, requirement) do
     case System.get_env("NBPR_RELEASE") do
-      "1" -> {name, requirement, organization: "nbpr"}
+      "1" -> {name, requirement}
       _ -> {name, path: nbpr_dep_path(name)}
     end
   end

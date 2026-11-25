@@ -54,12 +54,11 @@ defmodule Mix.Tasks.Nbpr.Catalogue do
     """
     # Catalogue
 
-    The current set of binary packages in the `nbpr` Hex organisation,
-    derived from `packages/` in the workspace at docs-build time.
+    The current set of `:nbpr_*` binary packages on hex.pm, derived
+    from `packages/` in the workspace at docs-build time.
 
-    The `:nbpr` library itself isn't shown — it lives on public
-    hex.pm rather than the `nbpr` organisation. Install it directly
-    from [hex.pm/packages/nbpr](https://hex.pm/packages/nbpr).
+    The `:nbpr` library itself isn't shown. Install it from
+    [hex.pm/packages/nbpr](https://hex.pm/packages/nbpr).
 
     #{render_table(pkgs)}
 
@@ -70,14 +69,14 @@ defmodule Mix.Tasks.Nbpr.Catalogue do
     ```elixir
     defp deps do
       [
-        {:nbpr, "~> 0.2"},
-        {:nbpr_jq, "~> 1.0", organization: "nbpr"}
+        {:nbpr, "~> 0.7"},
+        {:nbpr_jq, "~> 1.8"}
       ]
     end
     ```
 
     See [Getting started](getting-started.md) for the full consumer
-    flow, including authenticating to the `nbpr` organisation.
+    flow.
     """
   end
 
@@ -119,7 +118,7 @@ defmodule Mix.Tasks.Nbpr.Catalogue do
   end
 
   defp render_row(%{name: name, version: version, description: description}) do
-    url = "https://hex.pm/packages/nbpr/#{name}"
+    url = "https://hex.pm/packages/#{name}"
     "| [`:#{name}`](#{url}) | #{version} | #{escape_pipes(description)} |"
   end
 

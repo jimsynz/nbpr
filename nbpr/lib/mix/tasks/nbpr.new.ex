@@ -463,15 +463,9 @@ defmodule Mix.Tasks.Nbpr.New do
 
     ## Usage
 
-    Authenticate to the `nbpr` Hex organisation once per machine (the
-    read key is intentionally public — it gates discoverability of the
-    org's binary packages, not access to private content):
+    Add this package to your Nerves project's `mix.exs`:
 
-        mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
-
-    Then add this package to your Nerves project's `mix.exs`:
-
-        {:#{package}, "#{hex_requirement}", organization: "nbpr"}
+        {:#{package}, "#{hex_requirement}"}
 
     Run `mix deps.get`, then `mix firmware`. The full consumer flow —
     including the `firmware:` alias that pulls binaries ahead of the
@@ -577,7 +571,6 @@ defmodule Mix.Tasks.Nbpr.New do
           deps: deps(),
           description: #{inspect(description)},
           package: [
-            organization: "nbpr",
             licenses: #{inspect(licences)},
             links: #{links_block}
           ]
@@ -596,18 +589,10 @@ defmodule Mix.Tasks.Nbpr.New do
 
       # Path dep for local dev (sibling in the workspace); Hex requirement
       # when publishing. Hex publish forbids path deps, so we switch the
-      # spec only when the workflow asks for it. `:nbpr` itself lives on
-      # public hex.pm; `:nbpr_*` packages live in the `nbpr` Hex org.
-      defp nbpr_dep(:nbpr = name, requirement) do
-        case System.get_env("NBPR_RELEASE") do
-          "1" -> {name, requirement}
-          _ -> {name, path: nbpr_dep_path(name)}
-        end
-      end
-
+      # spec only when the workflow asks for it.
       defp nbpr_dep(name, requirement) do
         case System.get_env("NBPR_RELEASE") do
-          "1" -> {name, requirement, organization: "nbpr"}
+          "1" -> {name, requirement}
           _ -> {name, path: nbpr_dep_path(name)}
         end
       end
@@ -621,7 +606,7 @@ defmodule Mix.Tasks.Nbpr.New do
   end
 
   defp deps_list_body(resolved_deps) do
-    base = [~s|nbpr_dep(:nbpr, "~> 0.2")|]
+    base = [~s|nbpr_dep(:nbpr, "~> 0.7")|]
 
     sibling_lines =
       Enum.map(resolved_deps, fn {nbpr_name, requirement} ->

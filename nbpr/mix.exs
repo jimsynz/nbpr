@@ -1,7 +1,7 @@
 defmodule NBPR.MixProject do
   use Mix.Project
 
-  @version "0.6.0"
+  @version "0.7.0"
   @source_url "https://github.com/jimsynz/nbpr"
 
   def project do
@@ -87,7 +87,8 @@ defmodule NBPR.MixProject do
           Mix.Tasks.Nbpr.New,
           Mix.Tasks.Nbpr.Pack,
           Mix.Tasks.Nbpr.Publish,
-          Mix.Tasks.Nbpr.Releasable
+          Mix.Tasks.Nbpr.Releasable,
+          Mix.Tasks.Nbpr.Upgrade
         ]
       ]
     ]

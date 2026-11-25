@@ -97,17 +97,18 @@ A few explicit non-goals:
   one wants OpenSSL with FIPS, one without) can't be satisfied
   simultaneously. NBPR fails loud at resolve time rather than
   letting the user produce a quietly-broken firmware.
-- **Org-scoped binaries, public library.** The `:nbpr` library is on
-  public hex.pm so its docs land on hexdocs and consumers can install
-  via the standard Igniter flow. The binary packages live in a Hex
-  organisation primarily to avoid polluting the main hex.pm namespace
-  with potentially hundreds of `:nbpr_*` entries — there's no
-  good-faith reason a casual hex.pm visitor should see all of them
-  scrolling past. The org's public read key opens the gate without
-  giving anyone publish rights, so consumers who want binary packages
-  can fetch them once they're authenticated. The artefact tarballs
-  themselves live on GHCR (free, GitHub-hosted), not in Hex — the
-  Hex package is just metadata + Mix project shape.
+- **Everything on public hex.pm.** The `:nbpr` library and every
+  `:nbpr_*` binary package are published to public hex.pm, so a
+  consumer needs no Hex credentials. The `nbpr_` prefix keeps the
+  binary packages together and stops them claiming the bare upstream
+  names. The packages used to live in a private Hex organisation, to
+  keep potentially hundreds of `:nbpr_*` entries out of the main
+  namespace, and a shared public read key opened it to everyone. When
+  a Hex security incident revoked that key, every consumer lost access
+  at once. A single shared credential turned out to be a single point
+  of failure, and it bought very little. The artefact tarballs
+  themselves live on GHCR (free, GitHub-hosted), not in Hex — the Hex
+  package is just metadata + Mix project shape.
 
 ## When you might still want a system fork instead
 

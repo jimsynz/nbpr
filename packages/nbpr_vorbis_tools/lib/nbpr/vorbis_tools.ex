@@ -80,7 +80,7 @@ defmodule NBPR.VorbisTools do
       config :nbpr_vorbis_tools, build_opts: [flac: true]
 
       # mix.exs
-      {:nbpr_flac, "~> 1.0", organization: "nbpr"}
+      {:nbpr_flac, "~> 1.0"}
 
   Buildroot's vorbis-tools also picks up Speex and Opus input when those
   packages are enabled. Neither is exposed here: nothing packages

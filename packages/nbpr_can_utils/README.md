@@ -9,15 +9,9 @@ Licences: BSD-3-Clause, GPL-2.0-only.
 
 ## Usage
 
-Authenticate to the `nbpr` Hex organisation once per machine (the
-read key is intentionally public — it gates discoverability of the
-org's binary packages, not access to private content):
+Add this package to your Nerves project's `mix.exs`:
 
-    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
-
-Then add this package to your Nerves project's `mix.exs`:
-
-    {:nbpr_can_utils, "~> 2025.0", organization: "nbpr"}
+    {:nbpr_can_utils, "~> 2025.0"}
 
 can-utils versions by calendar year, so the Hex major is the year and a
 requirement written this way stops matching when upstream cuts its next

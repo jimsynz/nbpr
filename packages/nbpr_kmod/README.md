@@ -18,7 +18,7 @@ from this package's priv dir at boot.
 Usually pulled in transitively by a kernel-module-bearing package. To
 use the tools directly, add to your Nerves project's `mix.exs`:
 
-    {:nbpr_kmod, "~> 34.2", organization: "nbpr"}
+    {:nbpr_kmod, "~> 34.2"}
 
 Run `mix deps.get`, then `mix firmware` — the tools land under
 `<release>/lib/nbpr_kmod-<vsn>/priv/` and `NBPR.Application` adds them

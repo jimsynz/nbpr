@@ -10,15 +10,9 @@ Licence: GPL-2.0-only.
 
 ## Usage
 
-Authenticate to the `nbpr` Hex organisation once per machine (the
-read key is intentionally public — it gates discoverability of the
-org's binary packages, not access to private content):
+Add this package to your Nerves project's `mix.exs`:
 
-    mix hex.organization auth nbpr --key 15da04a2330d881e1301a73c5d39f591
-
-Then add this package to your Nerves project's `mix.exs`:
-
-    {:nbpr_vorbis_tools, "~> 1.0", organization: "nbpr"}
+    {:nbpr_vorbis_tools, "~> 1.0"}
 
 Run `mix deps.get`, then `mix firmware`. The full consumer flow —
 including the `firmware:` alias that pulls binaries ahead of the
@@ -112,7 +106,7 @@ Build options can be overridden in your app's `config/target.exs`:
 `ogg123` plays it. It's off by default, matching Buildroot. Turning it on
 means adding the library to your own dependencies too:
 
-    {:nbpr_flac, "~> 1.0", organization: "nbpr"}
+    {:nbpr_flac, "~> 1.0"}
 
 Without it, `mix nbpr.fetch`'s shared-library check will tell you
 `libFLAC.so.14` is missing from the firmware rather than letting you find
