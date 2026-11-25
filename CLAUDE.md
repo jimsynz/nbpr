@@ -9,7 +9,7 @@ NBPR (Nerves Binary Package Repository) is a curated set of public Hex packages 
 In scope:
 - Userspace Buildroot packages (binaries, libraries, configs) overlaid onto the rootfs.
 - A small Elixir library (`:nbpr`) providing the `NBPR.BrPackage` macro that every package `use`s.
-- Per-package mix projects published independently to the `nbpr` Hex org.
+- Per-package mix projects published independently to public hex.pm. New releases are staged by Hex and need an owner's approval on the dashboard before they go live.
 - Source-build fallback when no prebuilt artefact exists for the active (system, system-version, build-options) tuple. Bullet-proof by requirement, not aspiration.
 - Out-of-tree kernel modules (post-spike) — these are regular `:nbpr_*` packages with a `kernel_modules:` metadata field, not a separate prefix. The macro generates an `Application` that loads them at boot.
 
@@ -54,7 +54,7 @@ the `deps/0` list in the workspace `mix.exs` as packages need them.
 - **Kernel-module packages auto-load via Application.** Packages declaring `kernel_modules: [...]` in their metadata get a generated `NBPR.<Name>.Application` whose `start/2` runs `NBPR.Runtime.load_kernel_module!/2` for each at boot (`insmod` of the priv-shipped `.ko` via `:nbpr_kmod`'s tools with in-tree deps modprobed first; plain `modprobe` as fallback), gated on Nerves target detection (`ID=nerves` in `/etc/os-release`; no-op on host). Kernel-module packages must depend on `:nbpr_kmod`. `Application.stop/1` is a no-op — kmods are global; never `rmmod`. This is kmod-only — daemon packages do *not* auto-start.
 - **`mix firmware` hook via overlay args.** Collect nbpr artefact directories and pass as additional `-a` overlay paths to `rel2fw.sh`. No change needed to `nerves_system_br`. Topo-sorted by deps, alphabetical tiebreaker.
 - **Licence aggregation.** Every package artefact ships its own `legal-info/` slice; firmware build concatenates. Designed in from day one to avoid breaking artefact compat later.
-- **Schema versioning.** Metadata struct includes a `version: 1` field from day one. The `NBPR.BrPackage` Hex semver dependency is the primary safety net (every package depends on `{:nbpr, "~> 1.0"}`), but the metadata version lets the curated CI introspect across mixed-version packages without parsing source.
+- **Schema versioning.** Metadata struct includes a `version: 1` field from day one. The `NBPR.BrPackage` Hex semver dependency is the primary safety net (every package depends on `{:nbpr, "~> 0.7"}`, bumped when a package needs a newer `:nbpr`), but the metadata version lets the curated CI introspect across mixed-version packages without parsing source.
 
 ## Relationship to surrounding repos
 
