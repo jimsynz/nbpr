@@ -45,8 +45,6 @@ jobs:
       - name: Compute releasables
         id: plan
         working-directory: nbpr
-        env:
-          NBPR_READ_KEY: ${{ secrets.NBPR_READ_KEY }}
         run: |
           mix local.hex --force
           mix local.rebar --force
@@ -64,7 +62,6 @@ jobs:
       - name: Tag, dispatch release.yml, and wait for Hex
         if: ${{ steps.plan.outputs.plan != '[]' }}
         env:
-          NBPR_READ_KEY: ${{ secrets.NBPR_READ_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PLAN: ${{ steps.plan.outputs.plan }}
         run: |
@@ -79,6 +76,7 @@ jobs:
           # dispatch release.yml via `gh workflow run`, which IS allowed
           # for GITHUB_TOKEN.
           echo "$PLAN" | jq -r '.[] | [.name, .version, .tag] | @tsv' > /tmp/plan.tsv
+          planned_from=$(git rev-parse HEAD)
 
           while IFS=$'\t' read -r name version tag; do
             echo "::group::Releasing $tag"
@@ -91,27 +89,15 @@ jobs:
               echo "Pushed $tag"
             fi
 
-            gh workflow run release.yml -f tag="$tag"
+            gh workflow run release.yml -f tag="$tag" -f ref="$planned_from"
             echo "Dispatched release.yml for $tag"
-
-            # Poll Hex API. `:nbpr` lives on public hex (no auth);
-            # `:nbpr_*` packages live in the `nbpr` org (auth-required).
-            # Both have the same response shape.
-            if [ "$name" = "nbpr" ]; then
-              hex_url="https://hex.pm/api/packages/nbpr"
-              hex_auth=()
-            else
-              hex_url="https://hex.pm/api/repos/nbpr/packages/$name"
-              hex_auth=(-H "authorization: $NBPR_READ_KEY")
-            fi
 
             deadline=$(( $(date +%s) + 900 ))
             hex_version=""
             while [ "$(date +%s)" -lt "$deadline" ]; do
               hex_version=$(curl -sS \
-                "${hex_auth[@]}" \
                 -H "accept: application/json" \
-                "$hex_url" \
+                "https://hex.pm/api/packages/$name" \
                 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(\"latest_stable_version\") or d.get(\"latest_version\") or \"\")" \
                 2>/dev/null || true)
 
