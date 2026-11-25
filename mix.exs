@@ -34,7 +34,8 @@ defmodule NBPR.Workspace.MixProject do
     bbb: {"nerves-project/nerves_system_bbb", "2.31.2"},
     trellis: {"nerves-project/nerves_system_trellis", "0.6.3"},
     x86_64: {"nerves-project/nerves_system_x86_64", "1.35.2"},
-    qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.5.2"}
+    qemu_aarch64: {"nerves-project/nerves_system_qemu_aarch64", "0.5.2"},
+    arduino_uno_q: {"jimsynz/nerves_system_arduino_uno_q", "0.1.3"}
   }
 
   # The C library each target's toolchain targets, from the toolchain named in
@@ -55,7 +56,8 @@ defmodule NBPR.Workspace.MixProject do
     bbb: :gnu,
     trellis: :gnu,
     x86_64: :musl,
-    qemu_aarch64: :gnu
+    qemu_aarch64: :gnu,
+    arduino_uno_q: :gnu
   }
 
   @doc """

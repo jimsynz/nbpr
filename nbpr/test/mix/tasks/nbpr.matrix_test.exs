@@ -178,6 +178,16 @@ defmodule Mix.Tasks.Nbpr.MatrixTest do
 
       assert Matrix.changed_targets(previous, current) == []
     end
+
+    test "a system hosted outside nerves-project is still tracked" do
+      previous = mix_exs(%{"rpi4" => "2.1.1"})
+
+      current =
+        previous <>
+          ~s|    arduino_uno_q: {"jimsynz/nerves_system_arduino_uno_q", "0.1.3"}\n|
+
+      assert Matrix.changed_targets(previous, current) == ["arduino_uno_q"]
+    end
   end
 
   defp entries do
