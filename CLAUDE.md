@@ -2,7 +2,7 @@
 
 ## What this is
 
-NBPR (Nerves Binary Package Repository) is a curated Hex repository for distributing Buildroot-built target packages to Nerves firmware projects. Users declare `{:nbpr_jq, "~> 1.0", organization: "nbpr"}` in their app's `mix.exs` and the binary lands in their rootfs at firmware-build time. Packages with daemons additionally generate MuonTrap-supervised GenServer modules the user adds to their supervision tree. Packages bearing out-of-tree kernel modules generate an `Application` that auto-loads them at boot (`insmod`-by-path via `:nbpr_kmod`'s tools, since stock systems don't index out-of-tree modules).
+NBPR (Nerves Binary Package Repository) is a curated set of public Hex packages for distributing Buildroot-built target packages to Nerves firmware projects. Users declare `{:nbpr_jq, "~> 1.8"}` in their app's `mix.exs` and the binary lands in their rootfs at firmware-build time. Packages with daemons additionally generate MuonTrap-supervised GenServer modules the user adds to their supervision tree. Packages bearing out-of-tree kernel modules generate an `Application` that auto-loads them at boot (`insmod`-by-path via `:nbpr_kmod`'s tools, since stock systems don't index out-of-tree modules).
 
 ## Scope
 
@@ -41,7 +41,7 @@ the `deps/0` list in the workspace `mix.exs` as packages need them.
 
 ## Naming conventions
 
-- **Hex package prefix:** all packages are `:nbpr_*` (e.g. `:nbpr_jq`, `:nbpr_dnsmasq`, `:nbpr_zfs`). No separate kmod prefix — out-of-tree kernel-module packages are regular `:nbpr_*` packages whose metadata declares `kernel_modules: [...]`. The prefix earns its keep on paste-safety: a user who copies a dep without `organization: "nbpr"` gets a clean "no such package" error instead of silently fetching something else from mainline.
+- **Hex package prefix:** all packages are `:nbpr_*` (e.g. `:nbpr_jq`, `:nbpr_dnsmasq`, `:nbpr_zfs`). No separate kmod prefix — out-of-tree kernel-module packages are regular `:nbpr_*` packages whose metadata declares `kernel_modules: [...]`. Every package is on public hex.pm (they lived in a private `nbpr` Hex organisation until a Hex security incident revoked its shared read key in November 2026), so the prefix also keeps them from claiming bare upstream names.
 - **Module namespace:** `:nbpr_<name>` → metadata module `NBPR.<Camel>` (e.g. `:nbpr_dnsmasq` → `NBPR.Dnsmasq`). Daemons are always nested even when the name duplicates: `NBPR.Dnsmasq.Dnsmasq`. The standard `Macro.camelize` mapping (which would yield `NbprDnsmasq`) does not apply — the `mix nbpr.new` generator emits `defmodule NBPR.<Camel> do` directly, so authors never camelize manually.
 
 ## Key design decisions (and why)
