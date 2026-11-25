@@ -13,10 +13,10 @@ defmodule Mix.Tasks.Nbpr.CatalogueTest do
       md = Catalogue.catalogue_markdown(pkgs)
 
       assert md =~
-               "| [`:nbpr_jq`](https://hex.pm/packages/nbpr/nbpr_jq) | 1.8.1 | JSON processor |"
+               "| [`:nbpr_jq`](https://hex.pm/packages/nbpr_jq) | 1.8.1 | JSON processor |"
 
       assert md =~
-               "| [`:nbpr_dnsmasq`](https://hex.pm/packages/nbpr/nbpr_dnsmasq) | 2.91.0 | DHCP/DNS server |"
+               "| [`:nbpr_dnsmasq`](https://hex.pm/packages/nbpr_dnsmasq) | 2.91.0 | DHCP/DNS server |"
     end
 
     test "shows a placeholder for an empty workspace" do
@@ -44,8 +44,8 @@ defmodule Mix.Tasks.Nbpr.CatalogueTest do
 
       contents = File.read!(output)
 
-      assert contents =~ "| [`:nbpr_one`](https://hex.pm/packages/nbpr/nbpr_one) | 1.0.0 |"
-      assert contents =~ "| [`:nbpr_two`](https://hex.pm/packages/nbpr/nbpr_two) | 2.5.3 |"
+      assert contents =~ "| [`:nbpr_one`](https://hex.pm/packages/nbpr_one) | 1.0.0 |"
+      assert contents =~ "| [`:nbpr_two`](https://hex.pm/packages/nbpr_two) | 2.5.3 |"
     end
 
     test "produces a valid catalogue when packages/ is empty" do

@@ -158,7 +158,7 @@ defmodule Mix.Tasks.Nbpr.ReleasableTest do
           end
 
           defp nbpr_dep(name, requirement) do
-            {name, requirement, organization: "nbpr"}
+            {name, requirement}
           end
         end
         """)

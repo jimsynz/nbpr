@@ -3,13 +3,10 @@ defmodule Mix.Tasks.Nbpr.Releasable do
 
   @moduledoc """
   Diffs each package's `mix.exs` `@version` against the latest version
-  published to the `nbpr` Hex organisation, returning the topo-sorted
-  list of packages that need a fresh release tag.
+  published to hex.pm, returning the topo-sorted list of packages that
+  need a fresh release tag.
 
       mix nbpr.releasable [--json] [--root <path>]
-
-  Reads `NBPR_READ_KEY` from the environment for the Hex org API. Without
-  it, the org-scoped lookups fail with HTTP 401 and the task aborts.
 
   ## Topological order
 
@@ -38,8 +35,6 @@ defmodule Mix.Tasks.Nbpr.Releasable do
   use Mix.Task
 
   @switches [json: :boolean, root: :string]
-
-  @hex_org "nbpr"
 
   @impl Mix.Task
   def run(args) do
@@ -239,33 +234,13 @@ defmodule Mix.Tasks.Nbpr.Releasable do
     end)
   end
 
-  # `:nbpr` itself lives on public hex.pm (no auth, no org path); `:nbpr_*`
-  # packages live in the `nbpr` org (auth-required, org path). The API
-  # response shape is the same for both.
-  defp fetch_hex_version("nbpr") do
-    do_fetch("https://hex.pm/api/packages/nbpr", [])
-  end
-
   defp fetch_hex_version(name) do
-    key = System.get_env("NBPR_READ_KEY")
+    url = "https://hex.pm/api/packages/#{name}"
 
-    if key in [nil, ""] do
-      Mix.raise("NBPR_READ_KEY env var is required for Hex org lookups")
-    end
-
-    do_fetch(
-      "https://hex.pm/api/repos/#{@hex_org}/packages/#{name}",
-      [{~c"authorization", String.to_charlist(key)}]
-    )
-  end
-
-  defp do_fetch(url, extra_headers) do
-    headers =
-      extra_headers ++
-        [
-          {~c"accept", ~c"application/json"},
-          {~c"user-agent", ~c"nbpr-releasable/1"}
-        ]
+    headers = [
+      {~c"accept", ~c"application/json"},
+      {~c"user-agent", ~c"nbpr-releasable/1"}
+    ]
 
     case :httpc.request(:get, {String.to_charlist(url), headers}, [], body_format: :binary) do
       {:ok, {{_, 200, _}, _, body}} ->
