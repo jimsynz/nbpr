@@ -127,7 +127,7 @@ defmodule Mix.Tasks.Nbpr.Matrix do
   # Matches the workspace `mix.exs` `@prebuild_systems` entries. Deliberately
   # the same shape Renovate's custom manager matches, so the two agree on
   # what a pin looks like.
-  @system_pin_regex ~r/\{"nerves-project\/nerves_system_([A-Za-z0-9_]+)",\s*"([0-9]+(?:\.[0-9]+){1,2})"\}/
+  @system_pin_regex ~r/\{"[A-Za-z0-9_.-]+\/nerves_system_([A-Za-z0-9_]+)",\s*"([0-9]+(?:\.[0-9]+){1,2})"\}/
 
   # Paths under `nbpr/` that cannot reach a Buildroot build, and so earn no
   # smoke coverage: the library's own metadata and test suite, the tasks that
